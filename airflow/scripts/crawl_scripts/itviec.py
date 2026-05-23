@@ -4,7 +4,7 @@ import logging
 from typing import List, Dict, Optional
 from bs4 import BeautifulSoup
 from selenium import webdriver
-from helpers.extracting_info import _safe_text, _safe_attr, _safe_find
+from .helpers.extracting_info import _safe_text, _safe_attr, _safe_find
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
@@ -20,30 +20,12 @@ logger = logging.getLogger(__name__)
 
 
 class ITViecScraper:
-    """Scraper for ITviec.com job listings, specifically targeting data-related roles.
-    This scraper uses Selenium to handle dynamic content and BeautifulSoup for parsing HTML.
-    It extracts job details such as title, company, location, job category, tags, descriptions
-    and requirements.
-
-    Usage:
-        scraper = ITViecScraper(headless=True)
-        job_data = scraper.scrape_jobs("https://itviec.com/it-jobs/data-analyst")
-    
-    Note:
-        - Ensure that the ChromeDriver is compatible with your installed version of Chrome.
-        - The scraper includes error handling and logging for better traceability.
-    """
     def __init__(self, headless: bool = True):
-        """Initialize the scraper with optional headless mode for ChromeDriver."""
         self.headless = headless
         self._driver_path = ChromeDriverManager().install()
 
     # ---------------- DRIVER SETUP ---------------- #
     def _get_chrome_options(self) -> Options:
-        """Configure Chrome options for Selenium WebDriver.
-        Returns:
-            Options: Configured Chrome options.
-        """
         options = Options()
         if self.headless:
             options.add_argument("--headless=new")
@@ -61,10 +43,6 @@ class ITViecScraper:
         return options
 
     def _init_driver(self) -> webdriver.Chrome:
-        """Initialize the Chrome WebDriver with the specified options.
-        Returns:
-            webdriver.Chrome: An instance of the Chrome WebDriver.
-        """
         logger.info("Initializing ChromeDriver...")
         return webdriver.Chrome(
             service=Service(self._driver_path),
@@ -72,12 +50,6 @@ class ITViecScraper:
         )
 
     def _extract_text(self, section) -> Optional[str]:
-        """Extract and concatenate text from a given BeautifulSoup section.
-        Args:
-            section: A BeautifulSoup element containing the job description or requirements.
-        Returns:
-            Optional[str]: A single string containing the concatenated text, or None if no text is found.
-        """
         try:
             items = section.find_all(["p", "li"], recursive=True)
             texts = [i.get_text() for i in items if i.get_text(strip=True)]
@@ -85,15 +57,13 @@ class ITViecScraper:
         except Exception:
             return None
 
-    def scrape_jobs(self, url: str, max_jobs: Optional[int] = 2) -> List[Dict[str, Optional[str]]]:
+    def scrape_jobs(self, url: str) -> List[Dict[str, Optional[str]]]:
         driver = self._init_driver()
         driver.get(url)
         time.sleep(3)
 
         soup = BeautifulSoup(driver.page_source, "html.parser")
-        jobs = soup.find_all("div", class_="job-card")
-        if max_jobs is not None:
-            jobs = jobs[:max_jobs]
+        jobs = soup.find_all("div", class_="ipy-2")
         driver.quit()
 
         logger.info(f"Found {len(jobs)} jobs")
@@ -126,7 +96,6 @@ class ITViecScraper:
 
                 title_el = _safe_find(job, "h3")
                 data["title"] = _safe_text(title_el)
-
                 company_el = _safe_find(
                     job, "div", class_="imy-3 d-flex align-items-center"
                 )

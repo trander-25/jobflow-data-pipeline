@@ -1,1 +1,9 @@
-  
+apache-airflow-providers-postgres>=5.10,<7
+apache-airflow-providers-trino>=5.7,<7
+beautifulsoup4>=4.12,<5
+dbt-core>=1.8,<2
+dbt-trino>=1.8,<2
+psycopg2-binary>=2.9,<3
+python-dotenv>=1.0,<2
+selenium>=4.20,<5
+webdriver-manager>=4.0,<5
