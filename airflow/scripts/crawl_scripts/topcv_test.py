@@ -2,6 +2,9 @@ import time
 import random
 import logging
 import json
+import argparse
+import sys
+from pathlib import Path
 from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
@@ -11,7 +14,11 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.common.exceptions import TimeoutException
 from typing import List, Dict, Optional
-from helpers.extracting_info import _safe_text, _safe_attr, _safe_find
+
+REPO_ROOT = Path(__file__).resolve().parents[3]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+from airflow.scripts.crawl_scripts.helpers.extracting_info import _safe_text, _safe_attr, _safe_find
 
 logging.basicConfig(
     level=logging.INFO,
@@ -266,11 +273,10 @@ class TopCVScraper:
         return job_data
 
 
-def test_scrape_topcv_two_jobs() -> None:
-    """Run test scraping for TopCV AI Engineer URL and print first 2 jobs."""
-    test_url = "https://www.topcv.vn/tim-viec-lam-ai-engineer"
+def test_scrape_topcv(max_jobs: Optional[int] = 2, url: str = "https://www.topcv.vn/tim-viec-lam-ai-engineer") -> None:
+    """Run test scraping for TopCV URL with configurable max jobs."""
     scraper = TopCVScraper(headless=True)
-    jobs = scraper.scrape_jobs(test_url, max_jobs=2)
+    jobs = scraper.scrape_jobs(url, max_jobs=max_jobs)
 
     print(f"Total jobs returned: {len(jobs)}")
     for idx, job in enumerate(jobs, 1):
@@ -279,4 +285,18 @@ def test_scrape_topcv_two_jobs() -> None:
 
 
 if __name__ == "__main__":
-    test_scrape_topcv_two_jobs()
+    parser = argparse.ArgumentParser(description="Run TopCV scraper test.")
+    parser.add_argument(
+        "--max-jobs",
+        type=int,
+        default=10,
+        help="Maximum number of listing jobs to process before scraping details.",
+    )
+    parser.add_argument(
+        "--url",
+        type=str,
+        default="https://www.topcv.vn/tim-viec-lam-ai-engineer",
+        help="Target TopCV URL for testing.",
+    )
+    args = parser.parse_args()
+    test_scrape_topcv(max_jobs=args.max_jobs, url=args.url)
