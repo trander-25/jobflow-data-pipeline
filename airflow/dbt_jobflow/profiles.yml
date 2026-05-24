@@ -1,0 +1,25 @@
+dbt_jobflow:
+  target: "{{ env_var('DBT_TARGET', 'airflow') }}"
+
+  outputs:
+    airflow:
+      type: trino
+      method: none
+      user: trino
+      host: trino
+      port: 8080
+      database: iceberg
+      schema: bronze
+      threads: 4
+      http_scheme: http
+
+    local:
+      type: trino
+      method: none
+      user: trino
+      host: localhost
+      port: 8081
+      database: iceberg
+      schema: bronze
+      threads: 4
+      http_scheme: http

@@ -169,7 +169,7 @@ class TopCVScraper:
         return descriptions, requirements, edu, type_of_work
 
     
-    def scrape_jobs(self, url: str) -> List[Dict[str, str]]:
+    def scrape_jobs(self, url: str, max_jobs: Optional[int] = None) -> List[Dict[str, str]]:
         """Main method to scrape jobs from TopCV."""        
         # Initialize driver for listing page
         driver = self._init_driver()
@@ -182,6 +182,8 @@ class TopCVScraper:
         page_source = driver.page_source
         soup = BeautifulSoup(page_source, "html.parser")
         jobs = soup.find_all('div', class_='job-item-search-result')
+        if max_jobs is not None:
+            jobs = jobs[:max_jobs]
         driver.quit()
 
         logger.info(f"Found {len(jobs)} jobs")

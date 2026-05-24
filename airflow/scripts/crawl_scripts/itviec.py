@@ -57,13 +57,67 @@ class ITViecScraper:
         except Exception:
             return None
 
-    def scrape_jobs(self, url: str) -> List[Dict[str, Optional[str]]]:
+    def _is_challenge_page(self, soup: BeautifulSoup) -> bool:
+        title_text = (soup.title.get_text(strip=True) if soup.title else "").lower()
+        body_text = soup.get_text(" ", strip=True).lower()
+        challenge_signals = [
+            "just a moment",
+            "attention required",
+            "verify you are human",
+            "cf-challenge",
+            "cloudflare",
+        ]
+        return any(sig in title_text or sig in body_text for sig in challenge_signals)
+
+    def _load_detail_soup(self, driver: webdriver.Chrome, url: str) -> BeautifulSoup:
+        driver.get(url)
+        try:
+            WebDriverWait(driver, 30).until(
+                lambda d: d.execute_script("return document.body.innerText.length") > 250
+            )
+        except TimeoutException:
+            logger.warning(f"Timeout waiting for job details to load for URL: {url}")
+        return BeautifulSoup(driver.page_source, "html.parser")
+
+    def _apply_detail_data(
+        self, data: Dict[str, Optional[str]], detail_soup: BeautifulSoup
+    ) -> None:
+        job_cat_div = detail_soup.find("div", string="Job Expertise:")
+        data["job_cat"] = ", ".join(
+            [job_cat.text.strip() for job_cat in job_cat_div.find_next("div").find_all("a")]
+        ) if job_cat_div else None
+
+        sections = detail_soup.find_all(
+            "div", class_="imy-5 paragraph"
+        )
+
+        if len(sections) > 0:
+            data["descriptions"] = self._extract_text(sections[0])
+        if len(sections) > 1:
+            data["requirements"] = self._extract_text(sections[1])
+
+    def _retry_detail_with_fresh_driver(self, data: Dict[str, Optional[str]]) -> None:
+        if not data["url"]:
+            return
+
+        retry_driver = self._init_driver()
+        try:
+            time.sleep(0.5 + random.uniform(0.5, 1.5))
+            retry_soup = self._load_detail_soup(retry_driver, data["url"])
+            if not self._is_challenge_page(retry_soup):
+                self._apply_detail_data(data, retry_soup)
+        finally:
+            retry_driver.quit()
+
+    def scrape_jobs(self, url: str, max_jobs: Optional[int] = None) -> List[Dict[str, Optional[str]]]:
         driver = self._init_driver()
         driver.get(url)
         time.sleep(3)
 
         soup = BeautifulSoup(driver.page_source, "html.parser")
         jobs = soup.find_all("div", class_="ipy-2")
+        if max_jobs is not None:
+            jobs = jobs[:max_jobs]
         driver.quit()
 
         logger.info(f"Found {len(jobs)} jobs")
@@ -132,33 +186,18 @@ class ITViecScraper:
                 # -------- DETAIL PAGE (NEW DRIVER) -------- #
                 if data["url"]:
                     try:
-                        detail_driver.get(data["url"])
-                        try:
-                            WebDriverWait(detail_driver, 30).until(
-                                lambda d: d.execute_script("return document.body.innerText.length") > 250
+                        detail_soup = self._load_detail_soup(detail_driver, data["url"])
+                        self._apply_detail_data(data, detail_soup)
+
+                        if (
+                            self._is_challenge_page(detail_soup)
+                            or not data["descriptions"]
+                            or not data["requirements"]
+                        ):
+                            logger.warning(
+                                f"Retrying job detail with a fresh driver for URL: {data['url']}"
                             )
-                        except TimeoutException:
-                            logger.warning(f"Timeout waiting for job details to load for URL: {data['url']}")
-                            #detail_driver.quit()
-                            time.sleep(0.5 + random.uniform(0.5, 1.5))
-                            continue
-
-                        detail_soup = BeautifulSoup(
-                            detail_driver.page_source, "html.parser"
-                        )
-
-                        job_cat_div = detail_soup.find("div", string="Job Expertise:")
-                        
-                        data["job_cat"] = ", ".join([job_cat.text.strip() for job_cat in job_cat_div.find_next("div").find_all("a")]) if job_cat_div else None
-
-                        sections = detail_soup.find_all(
-                            "div", class_="imy-5 paragraph"
-                        )
-
-                        if len(sections) > 0:
-                            data["descriptions"] = self._extract_text(sections[0])
-                        if len(sections) > 1:
-                            data["requirements"] = self._extract_text(sections[1])
+                            self._retry_detail_with_fresh_driver(data)
 
                     finally:
                         # detail_driver.quit()
