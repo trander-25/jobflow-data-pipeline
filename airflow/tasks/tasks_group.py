@@ -20,7 +20,7 @@ PROFILE_DIR = '/opt/airflow/dbt/job_warehouse'
 #     def load_itviec_url():
 #         return load_crawl_sources_url(source_crawl="itviec")
 
-#     @task(
+#     @task(    
 #         on_success_callback=task_success_callback,
 #         on_failure_callback=task_failure_callback
 #     )

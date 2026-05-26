@@ -70,3 +70,51 @@ class MinIOConnection:
         except S3Error as e:
             logger.error("Upload failed: %s/%s. Error: %s", bucket_name, destination_file, e, exc_info=True)
             return False
+        
+    def read_file(self, bucket_name: str, object_name: str):
+        """Read a file from a specified bucket in MinIO"""
+        response = None
+        try:
+            response = self.minio_client.get_object(bucket_name, object_name)
+            
+            data = response.read().decode('utf-8')
+            return data
+        except S3Error as e:
+            logger.error(f"Error reading file: {e}")
+        finally:
+            if response:
+                response.close()
+                response.release_conn()
+    
+    def upload_file(self, bucket_name: str, source_url: str, content: bytes):
+        def _detect_extension(content: bytes) -> str:
+            img_type = imghdr.what(None, content)
+            if not img_type:
+                raise ValueError("Unknown image type")
+            return img_type
+
+        def _object_name(url: str, ext: str) -> str:
+            h = hashlib.md5(url.encode()).hexdigest()
+            return f"logos/{h}.{ext}"
+
+        """Upload a file to a specified bucket in MinIO"""
+        ext = _detect_extension(content)
+        object_name = _object_name(source_url, ext)
+        try:
+            self.minio_client.bucket_exists(bucket_name)
+        except S3Error as e:
+            logger.error(f"Error checking bucket: {e}")
+            logger.info(f"Creating bucket: {bucket_name}")
+            self.minio_client.make_bucket(bucket_name)
+        try:
+            self.minio_client.put_object(
+                bucket_name,
+                object_name=object_name,
+                data=BytesIO(content),
+                length=len(content),
+                content_type=f"image/{ext}",
+            )
+        except S3Error as e:
+            logger.error(f"Error uploading file: {e}")
+        mime = "png" if ext.lower() == "png" else "jpeg"
+        return object_name, mime

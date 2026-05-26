@@ -54,6 +54,20 @@ def upload_crawl_data_to_minio(data:List[Dict], source_crawl:str, bucket_name:st
         logger.error(f"Error uploading {source_crawl} jobs to MinIO: {e}")
         raise
 
+def get_data_from_minio(source_crawl:str, file_path:str):
+    from scripts.utils.minio_conn import MinIOConnection
+
+    try:
+        minio_conn = MinIOConnection()
+        bucket_name = "crawled-data"
+        _data = minio_conn.read_file(bucket_name=bucket_name, object_name=file_path)
+        data = json.loads(_data) if _data else []
+        logger.info(f"Retrieved {len(data)} {source_crawl} jobs from MinIO at {file_path}")
+        return data
+    except Exception as e:
+        logger.error(f"Error retrieving {source_crawl} jobs from MinIO at {file_path}: {e}")
+        raise
+
 def deduplicate_jobs(jobs: list[dict], key: str = "url") -> list[dict]:
     """Deduplicate a list of job dictionaries based on a specified key (default is 'url').
     Args:
@@ -126,3 +140,102 @@ def scrape_source_job(sources: dict, source_crawl:str):
             'uploaded_file_path': upload_file_path
         }
     return return_dict
+
+def insert_jobs_to_staging_layer(data_file_path: str, source_crawl:str):
+    from scripts.utils.db_conn import DBConnection
+
+    try:
+        data = get_data_from_minio(source_crawl=source_crawl, file_path=data_file_path)
+        if not data:
+            logger.info(f"No {source_crawl} jobs to insert")
+            return {}
+
+        if source_crawl=='itviec':
+            DBConnection().insert_itviec_jobs(data)
+        elif source_crawl=='topcv':
+            DBConnection().insert_topcv_jobs(data)
+        else:
+            raise ValueError(f"Unknown source_crawl: {source_crawl}. Must be 'itviec' or 'topcv'")
+        
+        return_dict = {
+                'rows_processed': 0,
+                'rows_inserted': len(data),
+                'rows_scraped':0,
+                'posts_sent': 0
+            }
+        return return_dict
+    except Exception as e:
+        logger.error(f"Error inserting {source_crawl} jobs to staging layer: {e}")
+        raise
+
+def insert_company_logos_to_staging_layer():
+    from scripts.utils.db_conn import DBConnection
+    from sqlalchemy import text
+
+    try:
+        conn = DBConnection()
+        #add LEFT JOIN to filter out existing logos
+        query = text(
+            """
+            SELECT logos.logo_url
+            FROM (
+                SELECT DISTINCT logo_url
+                FROM staging.itviec_data_job
+                WHERE logo_url IS NOT NULL AND logo_url <> ''
+                UNION
+                SELECT DISTINCT logo_url
+                FROM staging.topcv_data_job
+                WHERE logo_url IS NOT NULL AND logo_url <> ''
+            ) AS logos
+            LEFT JOIN staging.company_logos AS cl
+            ON logos.logo_url = cl.logo_url
+            WHERE cl.logo_url IS NULL
+            """
+        )
+        with conn.engine.connect() as connection:
+            data = [dict(row) for row in connection.execute(query).fetchall()]
+
+        if not data:
+            logger.info("No company logos to insert")
+            return None
+
+        DBConnection().insert_company_logos(data)
+        return data
+    except Exception as e:
+        logger.error(f"Error inserting company logos: {e}")
+        raise
+
+def download_logos_and_upload_to_minio(data: list[dict]):
+    from scripts.utils.image_processor import ImageDownloader
+    from scripts.utils.minio_conn import MinIOConnection
+
+    minio_conn = MinIOConnection()
+    image_downloader = ImageDownloader()
+
+    if not data:
+        logger.info("No company logos to process")
+        return []
+
+    results = []
+    errors = []
+    for logo_item in data:
+        # Extract URL from dict format {'logo_url': 'url'}
+        logo_url = logo_item.get('logo_url') if isinstance(logo_item, dict) else logo_item
+        try:
+            content = image_downloader._process_single(logo_url)
+            object_name, ext = minio_conn.upload_file(bucket_name='crawled-data', source_url=logo_url, content=content)
+            # Encode content to base64 for the logo_path
+            encoded_content = base64.b64encode(content).decode("utf-8")
+            results.append({
+                'logo_url': logo_url,
+                'logo_path': f"data:image/{ext};base64,{encoded_content}"
+            })
+            logger.info(f"Uploaded logo for {logo_url} to MinIO at {object_name}")
+        except Exception as e:
+            logger.error(f"Error processing logo {logo_url}: {e}")
+            errors.append((logo_url, str(e)))
+    
+    if errors and not results:
+        raise RuntimeError(f"Failed to process any logos. Errors: {errors}")
+    
+    return results
