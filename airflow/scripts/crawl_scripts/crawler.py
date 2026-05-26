@@ -1,5 +1,5 @@
-from topcv import TopCVScraper
-from itviec import ITViecScraper
+from .topcv import TopCVScraper
+from .itviec import ITViecScraper
 
 class Crawler:
     """Crawler class to scrape job listings from different sources.

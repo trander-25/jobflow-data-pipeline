@@ -10,7 +10,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.common.exceptions import TimeoutException
 from typing import List, Dict, Optional
-from helpers.extracting_info import _safe_text, _safe_attr, _safe_find
+from .helpers.extracting_info import _safe_text, _safe_attr, _safe_find
 
 logging.basicConfig(
     level=logging.INFO,

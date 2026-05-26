@@ -29,6 +29,13 @@ def load_crawl_sources_url(source_crawl:str):
     return data
 
 def upload_crawl_data_to_minio(data:List[Dict], source_crawl:str, bucket_name:str='crawled-data'):
+    """Upload crawl data to MinIO.
+    Args:
+        data (List[Dict]): The crawl data to upload.
+        source_crawl (str): The source of the crawl data, used for naming the destination file.
+        bucket_name (str): The name of the MinIO bucket to upload to. Default is 'crawled-data'.
+    Returns:
+        str: The destination file path in MinIO where the data was uploaded."""
     import datetime
     if not data:
         logger.info(f"No {source_crawl} jobs to upload to MinIO")
@@ -46,3 +53,76 @@ def upload_crawl_data_to_minio(data:List[Dict], source_crawl:str, bucket_name:st
     except Exception as e:
         logger.error(f"Error uploading {source_crawl} jobs to MinIO: {e}")
         raise
+
+def deduplicate_jobs(jobs: list[dict], key: str = "url") -> list[dict]:
+    """Deduplicate a list of job dictionaries based on a specified key (default is 'url').
+    Args:
+        jobs (list[dict]): The list of job dictionaries to deduplicate.
+        key (str): The key in the job dictionaries to use for deduplication. Default is 'url'.
+    Returns:
+        list[dict]: A deduplicated list of job dictionaries."""
+    seen = set()
+    deduped = []
+
+    for job in jobs:
+        if not isinstance(job, dict):
+            continue
+
+        value = job.get(key)
+        if not value:
+            continue
+
+        if value not in seen:
+            seen.add(value)
+            deduped.append(job)
+
+    return deduped
+
+def scrape_source_job(sources: dict, source_crawl:str):
+    """Scrape job data from specified sources, validate the data, and upload it to MinIO.
+    Args:
+        sources (dict): A dictionary of sources to scrape, where keys are source names and values are URLs.
+        source_crawl (str): The source to crawl, either 'itviec' or 'topcv'.
+    Returns:
+        dict: A dictionary containing the results of the scraping process, including counts of rows processed,"""
+    from scripts.crawl_scripts.crawler import Crawler
+    from scripts.validation.ge_runner import run_ge_validation
+    from scripts.validation.itviec import expectations as itviec_expectations
+    from scripts.validation.topcv import expectations as topcv_expectations
+
+    crawler = Crawler(source_crawl)
+    total_data_job = []
+    errors = []
+
+    # Scrape jobs from each source and accumulate results
+    for source, url in sources.items():
+        logger.info(f"Processing source: {source} with URL: {url}")
+        try:
+            dict_jobs = crawler.crawler(url)
+            if dict_jobs:
+                logger.info(f"Successfully scraped {len(dict_jobs)} jobs from {source_crawl}")
+                total_data_job += dict_jobs
+        except Exception as e:
+            logger.error(f"Error scraping {source_crawl} from {source}: {e}")
+            errors.append(str(e))
+    if errors and not total_data_job:
+        raise RuntimeError(f"Failed to scrape any jobs from {source_crawl}. Errors: {errors}")
+    
+    deduped_jobs = deduplicate_jobs(total_data_job)
+    
+    source_expectations = itviec_expectations if source_crawl=='itviec' else topcv_expectations
+    run_ge_validation(
+        records=deduped_jobs,
+        expectation_fn=source_expectations,
+        source_name=source_crawl
+    )
+    
+    upload_file_path = upload_crawl_data_to_minio(data=deduped_jobs, source_crawl=source_crawl)
+    return_dict = {
+            'rows_processed': 0,
+            'rows_inserted': 0,
+            'rows_scraped':len(deduped_jobs),
+            'posts_sent': 0,
+            'uploaded_file_path': upload_file_path
+        }
+    return return_dict
