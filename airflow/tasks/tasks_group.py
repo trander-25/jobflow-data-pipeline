@@ -1,6 +1,6 @@
 from airflow.decorators import task, task_group
-from tasks.process_tasks import load_crawl_sources_url, scrape_source_job, insert_jobs_to_staging_layer, post_job_to_discord, insert_company_logos_to_staging_layer, download_logos_and_upload_to_minio, update_company_logos_in_staging_layer
-from tasks.audit_tasks import dbt_task_callback, discord_task_callback, task_failure_callback, task_success_callback
+from tasks.process_tasks import load_crawl_sources_url, scrape_source_job, insert_jobs_to_staging_layer
+from tasks.audit_tasks import task_failure_callback, task_success_callback
 import logging
 
 logger = logging.getLogger(__name__)

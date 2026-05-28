@@ -33,7 +33,7 @@ class DBConnection:
             ON CONFLICT (url) DO UPDATE SET
                 title = EXCLUDED.title,
                 company = EXCLUDED.company,
-                logo_url = EXCLUDED.logo_url,
+                logo_url = EXCLUDED.logo_url,  
                 job_category = EXCLUDED.job_category,
                 working_location = EXCLUDED.working_location,
                 work_model = EXCLUDED.work_model,

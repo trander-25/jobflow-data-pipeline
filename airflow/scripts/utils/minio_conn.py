@@ -19,8 +19,8 @@ class MinIOConnection:
 
     def _connect_minio(self):
         """Establishes a connection to the MinIO server using credentials from environment variables."""
-        endpoint = "localhost:9000"
-        # endpoint = "minio:9000"
+        # endpoint = "localhost:9000"
+        endpoint = "minio:9000"
         logger.info("Connecting to MinIO at %s", endpoint)
         return Minio(
             endpoint,
