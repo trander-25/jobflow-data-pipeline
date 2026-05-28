@@ -1,5 +1,5 @@
 from airflow.decorators import task, task_group
-from tasks.process_tasks import load_crawl_sources_url, scrape_source_job, insert_jobs_to_staging_layer
+from tasks.process_tasks import load_crawl_sources_url, scrape_source_job, insert_jobs_to_staging_layer, insert_company_logos_to_staging_layer, download_logos_and_upload_to_minio, update_company_logos_in_staging_layer
 from tasks.audit_tasks import task_failure_callback, task_success_callback
 import logging
 
@@ -69,3 +69,35 @@ def topcv_pipeline():
     insert_staging_task = insert_jobs_topcv(scrape_task)
     
     return insert_staging_task
+
+#task group for processing logos
+@task_group
+def process_company_logos_group():
+    @task(
+        on_success_callback=task_success_callback,
+        on_failure_callback=task_failure_callback
+    )
+    def insert_company_logos():
+        return insert_company_logos_to_staging_layer()
+
+    @task(
+        on_success_callback=task_success_callback,
+        on_failure_callback=task_failure_callback
+    )
+    def download_and_upload_logos(data: list[dict]):
+        return download_logos_and_upload_to_minio(data)
+    
+    @task(
+        on_success_callback=task_success_callback,
+        on_failure_callback=task_failure_callback
+    )
+    def update_company_logos(results: list[dict]):
+        return update_company_logos_in_staging_layer(results)
+    
+    insert_logos_task = insert_company_logos()
+    download_upload_task = download_and_upload_logos(insert_logos_task)
+    update_logos_task = update_company_logos(download_upload_task)
+    
+    return {"insert_logos": insert_logos_task,
+            "download_upload": download_upload_task,
+            "update_logos": update_logos_task}

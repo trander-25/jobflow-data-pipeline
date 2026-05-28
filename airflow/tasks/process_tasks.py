@@ -2,6 +2,7 @@ import os
 import sys
 import logging
 import json
+import base64
 sys.path.insert(1, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from typing import List, Dict
 
@@ -168,74 +169,85 @@ def insert_jobs_to_staging_layer(data_file_path: str, source_crawl:str):
         logger.error(f"Error inserting {source_crawl} jobs to staging layer: {e}")
         raise
 
-# def insert_company_logos_to_staging_layer():
-#     from scripts.utils.db_conn import DBConnection
-#     from sqlalchemy import text
+def insert_company_logos_to_staging_layer():
+    from scripts.utils.db_conn import DBConnection
+    from sqlalchemy import text
 
-#     try:
-#         conn = DBConnection()
-#         #add LEFT JOIN to filter out existing logos
-#         query = text(
-#             """
-#             SELECT logos.logo_url
-#             FROM (
-#                 SELECT DISTINCT logo_url
-#                 FROM staging.itviec_data_job
-#                 WHERE logo_url IS NOT NULL AND logo_url <> ''
-#                 UNION
-#                 SELECT DISTINCT logo_url
-#                 FROM staging.topcv_data_job
-#                 WHERE logo_url IS NOT NULL AND logo_url <> ''
-#             ) AS logos
-#             LEFT JOIN staging.company_logos AS cl
-#             ON logos.logo_url = cl.logo_url
-#             WHERE cl.logo_url IS NULL
-#             """
-#         )
-#         with conn.engine.connect() as connection:
-#             data = [dict(row) for row in connection.execute(query).fetchall()]
+    try:
+        conn = DBConnection()
+        #add LEFT JOIN to filter out existing logos
+        query = text(
+            """
+            SELECT logos.logo_url
+            FROM (
+                SELECT DISTINCT logo_url
+                FROM staging.itviec_data_job
+                WHERE logo_url IS NOT NULL AND logo_url <> ''
+                UNION
+                SELECT DISTINCT logo_url
+                FROM staging.topcv_data_job
+                WHERE logo_url IS NOT NULL AND logo_url <> ''
+            ) AS logos
+            LEFT JOIN staging.company_logos AS cl
+            ON logos.logo_url = cl.logo_url
+            WHERE cl.logo_url IS NULL
+            """
+        )
+        with conn.engine.connect() as connection:
+            data = [dict(row) for row in connection.execute(query).fetchall()]
 
-#         if not data:
-#             logger.info("No company logos to insert")
-#             return None
+        if not data:
+            logger.info("No company logos to insert")
+            return None
 
-#         DBConnection().insert_company_logos(data)
-#         return data
-#     except Exception as e:
-#         logger.error(f"Error inserting company logos: {e}")
-#         raise
+        DBConnection().insert_company_logos(data)
+        return data
+    except Exception as e:
+        logger.error(f"Error inserting company logos: {e}")
+        raise
 
-# def download_logos_and_upload_to_minio(data: list[dict]):
-#     from scripts.utils.image_processor import ImageDownloader
-#     from scripts.utils.minio_conn import MinIOConnection
+def download_logos_and_upload_to_minio(data: list[dict]):
+    from scripts.utils.image_processor import ImageDownloader
+    from scripts.utils.minio_conn import MinIOConnection
 
-#     minio_conn = MinIOConnection()
-#     image_downloader = ImageDownloader()
+    minio_conn = MinIOConnection()
+    image_downloader = ImageDownloader()
 
-#     if not data:
-#         logger.info("No company logos to process")
-#         return []
+    if not data:
+        logger.info("No company logos to process")
+        return []
 
-#     results = []
-#     errors = []
-#     for logo_item in data:
-#         # Extract URL from dict format {'logo_url': 'url'}
-#         logo_url = logo_item.get('logo_url') if isinstance(logo_item, dict) else logo_item
-#         try:
-#             content = image_downloader._process_single(logo_url)
-#             object_name, ext = minio_conn.upload_file(bucket_name='crawled-data', source_url=logo_url, content=content)
-#             # Encode content to base64 for the logo_path
-#             encoded_content = base64.b64encode(content).decode("utf-8")
-#             results.append({
-#                 'logo_url': logo_url,
-#                 'logo_path': f"data:image/{ext};base64,{encoded_content}"
-#             })
-#             logger.info(f"Uploaded logo for {logo_url} to MinIO at {object_name}")
-#         except Exception as e:
-#             logger.error(f"Error processing logo {logo_url}: {e}")
-#             errors.append((logo_url, str(e)))
+    results = []
+    errors = []
+    for logo_item in data:
+        # Extract URL from dict format {'logo_url': 'url'}
+        logo_url = logo_item.get('logo_url') if isinstance(logo_item, dict) else logo_item
+        try:
+            content = image_downloader._process_single(logo_url)
+            object_name, ext = minio_conn.upload_file(bucket_name='crawled-data', source_url=logo_url, content=content)
+            # Encode content to base64 for the logo_path
+            encoded_content = base64.b64encode(content).decode("utf-8")
+            results.append({
+                'logo_url': logo_url,
+                'logo_path': f"data:image/{ext};base64,{encoded_content}"
+            })
+            logger.info(f"Uploaded logo for {logo_url} to MinIO at {object_name}")
+        except Exception as e:
+            logger.error(f"Error processing logo {logo_url}: {e}")
+            errors.append((logo_url, str(e)))
     
-#     if errors and not results:
-#         raise RuntimeError(f"Failed to process any logos. Errors: {errors}")
+    if errors and not results:
+        raise RuntimeError(f"Failed to process any logos. Errors: {errors}")
     
-#     return results
+    return results
+
+def update_company_logos_in_staging_layer(results: list[dict]):
+    from scripts.utils.db_conn import DBConnection
+    if not results:
+        return None
+    try:
+        db_conn = DBConnection()
+        db_conn.update_company_logos(results)
+    except Exception as e:
+        logger.error(f"Error updating company logos in staging layer: {e}")
+        raise
