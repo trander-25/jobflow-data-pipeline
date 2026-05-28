@@ -342,3 +342,30 @@ def task_failure_callback(context):
         error_message=error_message,
         error_type=error_type
     )
+
+def dbt_task_callback(context):
+    """Log dbt task execution to audit table"""
+    
+    audit_logger = get_audit_logger()
+    
+    task_id = context.get('task_instance').task_id
+    layer = None
+    
+    if 'bronze' in task_id.lower():
+        layer = 'bronze'
+    elif 'silver' in task_id.lower():
+        layer = 'silver'
+    elif 'gold' in task_id.lower():
+        layer = 'gold'
+    
+    dbt_command = f'dbt run --select {layer}'
+
+    audit_logger.log_task_execution(
+        context=context,
+        task_status='success',
+        dbt_command=dbt_command,
+        additional_metadata={
+            'layer': layer,
+            'task_group': 'dbt_wh_pipeline'
+        }
+    )
