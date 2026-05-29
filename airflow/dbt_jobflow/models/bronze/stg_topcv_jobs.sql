@@ -2,11 +2,11 @@
     materialized='incremental',
     unique_key='url',
     incremental_strategy='merge',
-    tags=['bronze_layer', 'basic_cleanse', 'topcv']
-)}}
+    tags=['bronze_layer', 'staging', 'topcv']
+) }}
 
 SELECT
-    id,
+    id AS source_job_id,
     {{ initcap_and_trim('title') }} AS title,
     {{ upper_and_trim('company') }} AS company,
     TRIM(logo_url) AS logo_url,
@@ -24,6 +24,5 @@ SELECT
 FROM {{ source('job_raw', 'topcv_data_job') }}
 
 {% if is_incremental() %}
-    -- Only process new records since last run
-    WHERE created_at > (SELECT MAX(created_at) FROM {{ this }})
+WHERE created_at > (SELECT MAX(created_at) FROM {{ this }})
 {% endif %}

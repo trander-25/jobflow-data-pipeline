@@ -1,0 +1,70 @@
+version: 2
+
+models:
+  - name: fct_jobs
+    description: "Central job posting fact table with conformed foreign keys."
+    columns:
+      - name: job_id
+        tests:
+          - not_null
+      - name: url
+        tests:
+          - not_null
+      - name: source_platform
+        tests:
+          - not_null
+      - name: company_id
+        tests:
+          - not_null
+      - name: job_posted_date
+        tests:
+          - not_null
+
+  - name: dim_company
+    description: "Company dimension with descriptive company attributes."
+    columns:
+      - name: company_id
+        tests:
+          - not_null
+          - unique
+      - name: company_name
+        tests:
+          - not_null
+
+  - name: dim_location
+    description: "Location dimension with descriptive location attributes."
+    columns:
+      - name: location_id
+        tests:
+          - not_null
+      - name: job_location
+        tests:
+          - not_null
+
+  - name: dim_education
+    description: "Education requirement dimension with descriptive ordering attributes."
+    columns:
+      - name: education_id
+        tests:
+          - not_null
+
+  - name: dim_work_model
+    description: "Work model dimension with grouping and sort attributes."
+    columns:
+      - name: work_model_id
+        tests:
+          - not_null
+
+  - name: dim_salary_band
+    description: "Salary band dimension with descriptive bounds and ordering."
+    columns:
+      - name: salary_band_id
+        tests:
+          - not_null
+
+  - name: dim_job_category
+    description: "Job category dimension with one row per normalized job category."
+    columns:
+      - name: job_category_id
+        tests:
+          - not_null

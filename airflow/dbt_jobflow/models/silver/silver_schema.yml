@@ -1,0 +1,39 @@
+version: 2
+
+models:
+  - name: int_itviec_jobs
+    description: "ITviec jobs conformed to the shared job posting structure."
+    columns:
+      - name: source_platform
+        tests:
+          - not_null
+      - name: url
+        tests:
+          - not_null
+
+  - name: int_topcv_jobs
+    description: "TopCV jobs conformed to the shared job posting structure."
+    columns:
+      - name: source_platform
+        tests:
+          - not_null
+      - name: url
+        tests:
+          - not_null
+
+  - name: int_jobs_unified
+    description: "Unified and enriched job postings before dimensional modeling."
+    columns:
+      - name: job_id
+        description: "Surrogate key generated from source platform and URL."
+        tests:
+          - not_null
+      - name: source_platform
+        tests:
+          - not_null
+      - name: url
+        tests:
+          - not_null
+      - name: job_posted_date
+        tests:
+          - not_null

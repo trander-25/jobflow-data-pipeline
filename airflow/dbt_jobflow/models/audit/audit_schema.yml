@@ -1,0 +1,22 @@
+version: 2
+
+models:
+  - name: job_elt_summary
+    description: "Daily ELT audit summary for the master job pipeline."
+    columns:
+      - name: task_name
+        tests:
+          - not_null
+      - name: execution_day
+        tests:
+          - not_null
+
+  - name: task_performance
+    description: "Task-level ELT performance and reliability metrics."
+    columns:
+      - name: task_name
+        tests:
+          - not_null
+      - name: execution_count
+        tests:
+          - not_null
