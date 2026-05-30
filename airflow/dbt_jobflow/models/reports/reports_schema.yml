@@ -3,17 +3,108 @@ version: 2
 models:
   - name: rpt_company_hiring_summary
     description: "Company-level hiring activity report for BI consumers."
+    columns:
+      - name: company_id
+        tests:
+          - not_null
+          - unique
+      - name: company_name
+        tests:
+          - not_null
+      - name: total_job_postings
+        tests:
+          - not_null
+
   - name: rpt_education_distribution
     description: "Education requirement demand and salary distribution report."
+    columns:
+      - name: education_id
+        tests:
+          - not_null
+          - unique
+      - name: education_requirement
+        tests:
+          - not_null
+      - name: job_count
+        tests:
+          - not_null
+
   - name: rpt_job_category_analysis
     description: "Job category demand, location coverage, and salary report."
+    columns:
+      - name: job_category_id
+        tests:
+          - not_null
+          - unique
+      - name: job_category
+        tests:
+          - not_null
+      - name: num_positions
+        tests:
+          - not_null
+
   - name: rpt_job_market_daily
     description: "Daily job market trend report by source platform."
+    columns:
+      - name: job_posted_date
+        tests:
+          - not_null
+      - name: source_platform
+        tests:
+          - not_null
+      - name: daily_job_postings
+        tests:
+          - not_null
+
   - name: rpt_location_salary_analysis
     description: "Location-level salary and work model report."
+    columns:
+      - name: location_id
+        tests:
+          - not_null
+          - unique
+      - name: job_location
+        tests:
+          - not_null
+      - name: total_jobs
+        tests:
+          - not_null
+
   - name: rpt_platform_comparison
     description: "Source platform comparison report."
+    columns:
+      - name: source_platform
+        tests:
+          - not_null
+          - unique
+      - name: total_job_postings
+        tests:
+          - not_null
+
   - name: rpt_salary_benchmark
     description: "Salary benchmark report by salary band."
+    columns:
+      - name: salary_band_id
+        tests:
+          - not_null
+          - unique
+      - name: salary_band
+        tests:
+          - not_null
+      - name: num_positions
+        tests:
+          - not_null
+
   - name: rpt_work_model_analysis
     description: "Work model demand and salary positioning report."
+    columns:
+      - name: work_model_id
+        tests:
+          - not_null
+          - unique
+      - name: work_model_normalized
+        tests:
+          - not_null
+      - name: job_count
+        tests:
+          - not_null

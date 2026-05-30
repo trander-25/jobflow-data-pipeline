@@ -369,3 +369,28 @@ def dbt_task_callback(context):
             'task_group': 'dbt_wh_pipeline'
         }
     )
+
+def discord_task_callback(context):
+    """Log discord task to audit table"""
+    
+    audit_logger = get_audit_logger()
+    
+    ti = context.get('ti')
+    return_value =ti.xcom_pull(key='return_value', default={})
+    
+    posts_sent = return_value.get('posts_sent', 0) if isinstance(return_value, dict) else 0
+    posts_failed = return_value.get('posts_failed', 0) if isinstance(return_value, dict) else 0
+    
+    # Determine data source from task_id
+    task_id = context.get('task_instance').task_id if context.get('task_instance') else ''
+    data_source = 'itviec' if 'itviec' in task_id.lower() else 'topcv' if 'topcv' in task_id.lower() else None
+    
+    audit_logger.log_task_execution(
+        context=context,
+        task_status='success',
+        rows_posted_discord=posts_sent,
+        discord_posts_failed=posts_failed,
+        additional_metadata={
+            'data_source': data_source
+        }
+    )

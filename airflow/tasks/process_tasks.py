@@ -251,3 +251,38 @@ def update_company_logos_in_staging_layer(results: list[dict]):
     except Exception as e:
         logger.error(f"Error updating company logos in staging layer: {e}")
         raise
+
+def post_job_to_discord(crawl_source:str):
+    from scripts.utils.sender import (
+        query_unposted_jobs,
+        mark_jobs_as_posted,
+        send_job_alerts
+    )
+    import os
+
+    DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
+    DISCORD_CHANNEL_ID = int(os.getenv("DISCORD_CHANNEL_ID", "0"))
+
+    if not DISCORD_TOKEN:
+        raise ValueError("DISCORD_TOKEN environment variable is not set")
+    if DISCORD_CHANNEL_ID == 0:
+        raise ValueError("DISCORD_CHANNEL_ID environment variable is not set or is invalid")
+
+    try:
+        query_data = query_unposted_jobs(table_name='itviec_data_job') if crawl_source=='itviec' else query_unposted_jobs(table_name='topcv_data_job')
+        jobs, urls = query_data
+        logger.info(f"Found {len(jobs)} new {crawl_source} jobs to post to Discord")
+        if not jobs:
+            logger.info(f'No new jobs from {crawl_source} to post to Discord')
+            return {}
+        
+        posts_send, posts_failed_sent = send_job_alerts(jobs, DISCORD_TOKEN, DISCORD_CHANNEL_ID)
+        mark_jobs_as_posted(table_name='itviec_data_job', job_urls=urls) if crawl_source=='itviec' else mark_jobs_as_posted(table_name='topcv_data_job', job_urls=urls)
+        return_dict = {
+                'posts_sent': posts_send,
+                'posts_failed': posts_failed_sent
+            }
+        return return_dict
+    except Exception as e:
+        logger.error(f"Error sending job alerts to Discord: {e}")
+        raise

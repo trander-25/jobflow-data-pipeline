@@ -47,6 +47,10 @@ models:
       +schema: gold
       +materialized: table
 
+    reports:
+      +schema: reports
+      +materialized: table
+
     audit:
       +schema: audit
       +materialized: table

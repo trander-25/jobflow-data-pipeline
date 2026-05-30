@@ -1,14 +1,15 @@
 from airflow.decorators import task, task_group
-from tasks.process_tasks import load_crawl_sources_url, scrape_source_job, insert_jobs_to_staging_layer, insert_company_logos_to_staging_layer, download_logos_and_upload_to_minio, update_company_logos_in_staging_layer
-from tasks.audit_tasks import task_failure_callback, task_success_callback, dbt_task_callback
+from tasks.process_tasks import load_crawl_sources_url, scrape_source_job, insert_jobs_to_staging_layer, insert_company_logos_to_staging_layer, download_logos_and_upload_to_minio, update_company_logos_in_staging_layer, post_job_to_discord
+from tasks.audit_tasks import task_failure_callback, task_success_callback, dbt_task_callback, discord_task_callback
 import logging
 
 logger = logging.getLogger(__name__)
 if not logger.handlers:
     logging.basicConfig(level=logging.INFO)
 
-PROJECT_DIR = '/opt/airflow/dbt/job_warehouse'
-PROFILE_DIR = '/opt/airflow/dbt/job_warehouse'
+PROJECT_DIR = '/opt/airflow/dbt_jobflow'
+PROFILE_DIR = '/opt/airflow/dbt_jobflow'
+DBT_RUNTIME_ARGS = '--log-path /tmp/dbt_logs --target-path /tmp/dbt_target'
 
 # task group for itviec pipeline
 @task_group
@@ -102,6 +103,32 @@ def process_company_logos_group():
             "download_upload": download_upload_task,
             "update_logos": update_logos_task}
 
+#task group for discord post
+@task_group
+def post_job_group():
+
+    @task(
+        on_success_callback=discord_task_callback,
+        on_failure_callback=task_failure_callback
+    )
+    def post_job_to_discord_itviec():
+        return post_job_to_discord(crawl_source="itviec")
+
+    @task(
+        on_success_callback=discord_task_callback,
+        on_failure_callback=task_failure_callback
+    )
+    def post_job_to_discord_topcv():
+        return post_job_to_discord(crawl_source="topcv")
+
+    itviec_task = post_job_to_discord_itviec()
+    topcv_task = post_job_to_discord_topcv()
+
+    return {
+        "itviec": itviec_task,
+        "topcv": topcv_task
+    }
+
 # task group for dbt
 @task_group
 def dbt_wh_pipeline():
@@ -111,7 +138,7 @@ def dbt_wh_pipeline():
     )
     def process_bronze_wh_layer():
         logger.info('Starting process data to bronze layer!!!')
-        return f'dbt run --select bronze --project-dir {PROJECT_DIR} --profiles-dir {PROFILE_DIR}'
+        return f'dbt run --select bronze --project-dir {PROJECT_DIR} --profiles-dir {PROFILE_DIR} {DBT_RUNTIME_ARGS}'
 
     @task.bash(
         on_success_callback=dbt_task_callback,
@@ -119,7 +146,7 @@ def dbt_wh_pipeline():
     )
     def bronze_wh_layer_test_models():
         logger.info('Starting process data to bronze layer!!!')
-        return f'dbt test --select bronze --project-dir {PROJECT_DIR} --profiles-dir {PROFILE_DIR}'
+        return f'dbt test --select bronze --project-dir {PROJECT_DIR} --profiles-dir {PROFILE_DIR} {DBT_RUNTIME_ARGS}'
 
     @task.bash(
         on_success_callback=dbt_task_callback,
@@ -127,7 +154,7 @@ def dbt_wh_pipeline():
     )
     def process_silver_wh_layer():
         logger.info('Starting process data to silver layer!!!')
-        return f'dbt run --select silver --project-dir {PROJECT_DIR} --profiles-dir {PROFILE_DIR}'
+        return f'dbt run --select silver --project-dir {PROJECT_DIR} --profiles-dir {PROFILE_DIR} {DBT_RUNTIME_ARGS}'
 
     @task.bash(
         on_success_callback=dbt_task_callback,
@@ -135,7 +162,7 @@ def dbt_wh_pipeline():
     )
     def silver_wh_layer_test_models():
         logger.info('Starting process data to silver layer!!!')
-        return f'dbt test --select silver --project-dir {PROJECT_DIR} --profiles-dir {PROFILE_DIR}'
+        return f'dbt test --select silver --project-dir {PROJECT_DIR} --profiles-dir {PROFILE_DIR} {DBT_RUNTIME_ARGS}'
 
     @task.bash(
         on_success_callback=dbt_task_callback,
@@ -143,7 +170,7 @@ def dbt_wh_pipeline():
     )
     def process_gold_wh_layer():
         logger.info('Starting process data to gold layer!!!')
-        return f'dbt run --select gold --project-dir {PROJECT_DIR} --profiles-dir {PROFILE_DIR}'
+        return f'dbt run --select gold --project-dir {PROJECT_DIR} --profiles-dir {PROFILE_DIR} {DBT_RUNTIME_ARGS}'
 
     @task.bash(
         on_success_callback=dbt_task_callback,
@@ -151,12 +178,28 @@ def dbt_wh_pipeline():
     )
     def gold_wh_layer_test_models():
         logger.info('Starting process data to gold layer!!!')
-        return f'dbt test --select gold --project-dir {PROJECT_DIR} --profiles-dir {PROFILE_DIR}'
+        return f'dbt test --select gold --project-dir {PROJECT_DIR} --profiles-dir {PROFILE_DIR} {DBT_RUNTIME_ARGS}'
+
+    @task.bash(
+        on_success_callback=dbt_task_callback,
+        on_failure_callback=task_failure_callback
+    )
+    def process_reports_wh_layer():
+        logger.info('Starting process data to reports layer!!!')
+        return f'dbt run --select reports --project-dir {PROJECT_DIR} --profiles-dir {PROFILE_DIR} {DBT_RUNTIME_ARGS}'
+
+    @task.bash(
+        on_success_callback=dbt_task_callback,
+        on_failure_callback=task_failure_callback
+    )
+    def reports_wh_layer_test_models():
+        logger.info('Starting test reports layer models!!!')
+        return f'dbt test --select reports --project-dir {PROJECT_DIR} --profiles-dir {PROFILE_DIR} {DBT_RUNTIME_ARGS}'
 
     @task.bash
     def process_audit_wh_layer():
         logger.info('Starting process data to audit layer!!!')
-        return f'dbt run --select audit --project-dir {PROJECT_DIR} --profiles-dir {PROFILE_DIR}'
+        return f'dbt run --select audit --project-dir {PROJECT_DIR} --profiles-dir {PROFILE_DIR} {DBT_RUNTIME_ARGS}'
     
     bronze = process_bronze_wh_layer()
     test_bronze = bronze_wh_layer_test_models()
@@ -164,7 +207,9 @@ def dbt_wh_pipeline():
     test_silver = silver_wh_layer_test_models()
     gold = process_gold_wh_layer()
     test_gold = gold_wh_layer_test_models()
+    reports = process_reports_wh_layer()
+    test_reports = reports_wh_layer_test_models()
     audit = process_audit_wh_layer()
-    bronze >> test_bronze >> silver >> test_silver >> gold >> test_gold >> audit
+    bronze >> test_bronze >> silver >> test_silver >> gold >> test_gold >> reports >> test_reports >> audit
     
     return bronze
