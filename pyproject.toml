@@ -1,20 +1,30 @@
-[tool.black]
-line-length = 88
-target-version = ["py311", "py312"]
-include = '\.pyi?$'
-extend-exclude = '''
-/(
-  \.git
-  | \.venv
-  | __pycache__
-  | airflow/dbt_jobflow
-  | logs
-)/
-'''
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+extend-exclude = [
+    ".git",
+    ".venv",
+    "__pycache__",
+    "airflow/dbt_jobflow",
+    "logs",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",
+    "F",
+    "I",
+    "W",
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
 
 [tool.pytest.ini_options]
 minversion = "8.0"
-testpaths = ["airflow/scripts/test"]
+testpaths = ["airflow/scripts/tests"]
 python_files = ["test_*.py"]
 pythonpath = ["airflow"]
 addopts = [

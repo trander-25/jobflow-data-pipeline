@@ -1,11 +1,13 @@
-from .topcv import TopCVScraper
 from .itviec import ITViecScraper
+from .topcv import TopCVScraper
+
 
 class Crawler:
     """Crawler class to scrape job listings from different sources.
     Args:
         source (str): The source to crawl from (e.g., "itviec", "topcv").
     """
+
     def __init__(self, source):
         self.source = source
 

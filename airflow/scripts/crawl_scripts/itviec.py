@@ -1,21 +1,20 @@
-import time
-import random
 import logging
-from typing import List, Dict, Optional
+import random
+import time
+from typing import Dict, List, Optional
+
 from bs4 import BeautifulSoup
 from selenium import webdriver
-from .helpers.extracting_info import _safe_text, _safe_attr, _safe_find
+from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.support.ui import WebDriverWait
-from selenium.common.exceptions import TimeoutException
+from webdriver_manager.chrome import ChromeDriverManager
+
+from .helpers.extracting_info import _safe_attr, _safe_find, _safe_text
 
 # ---------------- LOGGING ---------------- #
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -45,8 +44,7 @@ class ITViecScraper:
     def _init_driver(self) -> webdriver.Chrome:
         logger.info("Initializing ChromeDriver...")
         return webdriver.Chrome(
-            service=Service(self._driver_path),
-            options=self._get_chrome_options()
+            service=Service(self._driver_path), options=self._get_chrome_options()
         )
 
     def _extract_text(self, section) -> Optional[str]:
@@ -83,13 +81,15 @@ class ITViecScraper:
         self, data: Dict[str, Optional[str]], detail_soup: BeautifulSoup
     ) -> None:
         job_cat_div = detail_soup.find("div", string="Job Expertise:")
-        data["job_cat"] = ", ".join(
-            [job_cat.text.strip() for job_cat in job_cat_div.find_next("div").find_all("a")]
-        ) if job_cat_div else None
-
-        sections = detail_soup.find_all(
-            "div", class_="imy-5 paragraph"
+        data["job_cat"] = (
+            ", ".join(
+                [job_cat.text.strip() for job_cat in job_cat_div.find_next("div").find_all("a")]
+            )
+            if job_cat_div
+            else None
         )
+
+        sections = detail_soup.find_all("div", class_="imy-5 paragraph")
 
         if len(sections) > 0:
             data["descriptions"] = self._extract_text(sections[0])
@@ -109,7 +109,9 @@ class ITViecScraper:
         finally:
             retry_driver.quit()
 
-    def scrape_jobs(self, url: str, max_jobs: Optional[int] = None) -> List[Dict[str, Optional[str]]]:
+    def scrape_jobs(
+        self, url: str, max_jobs: Optional[int] = None
+    ) -> List[Dict[str, Optional[str]]]:
         driver = self._init_driver()
         driver.get(url)
         time.sleep(3)
@@ -137,7 +139,7 @@ class ITViecScraper:
                 "mode": None,
                 "tags": None,
                 "descriptions": None,
-                "requirements": None
+                "requirements": None,
             }
 
             try:
@@ -150,16 +152,10 @@ class ITViecScraper:
 
                 title_el = _safe_find(job, "h3")
                 data["title"] = _safe_text(title_el)
-                company_el = _safe_find(
-                    job, "div", class_="imy-3 d-flex align-items-center"
-                )
-                data["company"] = _safe_text(
-                    _safe_find(company_el, "span")
-                )
+                company_el = _safe_find(job, "div", class_="imy-3 d-flex align-items-center")
+                data["company"] = _safe_text(_safe_find(company_el, "span"))
 
-                data["logo"] = _safe_attr(
-                    _safe_find(company_el, "img"), "data-src"
-                )
+                data["logo"] = _safe_attr(_safe_find(company_el, "img"), "data-src")
 
                 data["mode"] = _safe_text(
                     _safe_find(job, "div", class_="text-rich-grey flex-shrink-0")
@@ -168,19 +164,13 @@ class ITViecScraper:
                 location_el = _safe_find(
                     job,
                     "div",
-                    class_="text-rich-grey text-truncate text-nowrap stretched-link position-relative"
+                    class_="text-rich-grey text-truncate text-nowrap stretched-link position-relative",
                 )
                 data["location"] = _safe_attr(location_el, "title")
 
-                tag_container = _safe_find(
-                    job, "div", class_="imt-4 imb-3 d-flex igap-1"
-                )
+                tag_container = _safe_find(job, "div", class_="imt-4 imb-3 d-flex igap-1")
                 if tag_container:
-                    tags = [
-                        _safe_text(a)
-                        for a in tag_container.find_all("a")
-                        if _safe_text(a)
-                    ]
+                    tags = [_safe_text(a) for a in tag_container.find_all("a") if _safe_text(a)]
                     data["tags"] = ", ".join(tags) if tags else None
 
                 # -------- DETAIL PAGE (NEW DRIVER) -------- #
@@ -207,10 +197,10 @@ class ITViecScraper:
                         time.sleep(0.5 + random.uniform(0.5, 1.5))
             except Exception as e:
                 logger.error(f"Job skipped due to unexpected error: {e}")
-            
-            if data['url'] and data['requirements'] and data['descriptions']:
+
+            if data["url"] and data["requirements"] and data["descriptions"]:
                 job_data.append(data)
         detail_driver.quit()
-        
+
         logger.info(f"Scraping completed. Total jobs scraped: {len(job_data)}")
         return job_data

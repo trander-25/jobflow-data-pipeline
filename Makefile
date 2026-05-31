@@ -22,8 +22,10 @@ help:
 	@echo "  make docker-ps          Show service status"
 	@echo "  make docker-init        Run setup, build, and start services"
 	@echo "  make install            Install Python dependencies into .venv"
-	@echo "  make format             Format Python code with Black"
-	@echo "  make lint               Lint Python code with Flake8"
+	@echo "  make format             Format Python code with Ruff"
+	@echo "  make format-check       Check Python code formatting with Ruff"
+	@echo "  make lint               Lint Python code with Ruff"
+	@echo "  make lint-check         Check Python code with Ruff"
 	@echo "  make test               Run pytest"
 	@echo "  make check              Run format-check, lint, and test"
 
@@ -52,13 +54,16 @@ install:
 	$(PIP) install -r requirements.txt
 
 format:
-	find $(CODE_PATHS) -type f -name '*.py' -print0 | xargs -0 -n 1 $(PYTHON) -m black
+	$(PYTHON) -m ruff format $(CODE_PATHS)
 
 format-check:
-	find $(CODE_PATHS) -type f -name '*.py' -print0 | xargs -0 -n 1 $(PYTHON) -m black --check
+	$(PYTHON) -m ruff format --check $(CODE_PATHS)
 
 lint:
-	$(PYTHON) -m flake8 $(CODE_PATHS)
+	$(PYTHON) -m ruff check $(CODE_PATHS) --fix
+
+lint-check:
+	$(PYTHON) -m ruff check $(CODE_PATHS)
 
 test:
 	$(PYTHON) -m pytest

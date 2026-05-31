@@ -30,7 +30,6 @@ attrs==25.4.0
 babel==2.17.0
 beautifulsoup4==4.14.3
 blinker==1.9.0
-black==25.1.0
 cachelib==0.13.0
 certifi==2026.1.4
 cffi==2.0.0
@@ -75,7 +74,6 @@ Flask-Login==0.6.3
 Flask-Session==0.5.0
 Flask-SQLAlchemy==2.5.1
 Flask-WTF==1.2.2
-flake8==7.1.1
 frozenlist==1.8.0
 fsspec==2026.1.0
 google-re2==1.1.20251105
@@ -192,6 +190,7 @@ rich==13.9.4
 rich-argparse==1.7.2
 rpds-py==0.30.0
 ruamel.yaml==0.19.1
+ruff==0.8.4
 scikit-image==0.26.0
 scipy==1.17.0
 selenium==4.39.0

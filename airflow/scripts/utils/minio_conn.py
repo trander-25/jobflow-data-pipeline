@@ -1,12 +1,12 @@
-from minio import Minio
-from minio.error import S3Error
-from io import BytesIO
-import os
 import hashlib
 import imghdr
-import base64
 import logging
+import os
+from io import BytesIO
+
 from dotenv import load_dotenv
+from minio import Minio
+from minio.error import S3Error
 
 load_dotenv()
 
@@ -26,9 +26,9 @@ class MinIOConnection:
             endpoint,
             access_key=os.getenv("MINIO_USER"),
             secret_key=os.getenv("MINIO_PASSWORD"),
-            secure=False
+            secure=False,
         )
-    
+
     def upload_data_object(self, bucket_name: str, data_object: list[dict], destination_file: str):
         """Uploads a data object to MinIO as a JSON file.
         Args:
@@ -36,8 +36,9 @@ class MinIOConnection:
             data_object (list[dict]): The data object to upload, which will be serialized to JSON.
             destination_file (str): The destination file name in the bucket (e.g., 'crawled-data/itviec_jobs.json').
         """
-        import json
         import io
+        import json
+
         # Ensure the bucket exists, create if it doesn't
         try:
             logger.info("Checking bucket: %s", bucket_name)
@@ -63,21 +64,23 @@ class MinIOConnection:
                 destination_file,
                 json_bytes,
                 length=len(json_bytes_raw),
-                content_type="application/json"
+                content_type="application/json",
             )
             logger.info("Upload successful: %s/%s", bucket_name, destination_file)
             return True
         except S3Error as e:
-            logger.error("Upload failed: %s/%s. Error: %s", bucket_name, destination_file, e, exc_info=True)
+            logger.error(
+                "Upload failed: %s/%s. Error: %s", bucket_name, destination_file, e, exc_info=True
+            )
             return False
-        
+
     def read_file(self, bucket_name: str, object_name: str):
         """Read a file from a specified bucket in MinIO"""
         response = None
         try:
             response = self.minio_client.get_object(bucket_name, object_name)
-            
-            data = response.read().decode('utf-8')
+
+            data = response.read().decode("utf-8")
             return data
         except S3Error as e:
             logger.error(f"Error reading file: {e}")
@@ -85,7 +88,7 @@ class MinIOConnection:
             if response:
                 response.close()
                 response.release_conn()
-    
+
     def upload_file(self, bucket_name: str, source_url: str, content: bytes):
         def _detect_extension(content: bytes) -> str:
             img_type = imghdr.what(None, content)

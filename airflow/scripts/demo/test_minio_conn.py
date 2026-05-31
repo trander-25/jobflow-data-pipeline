@@ -1,10 +1,12 @@
 import logging
+
 from scripts.utils.minio_conn import MinIOConnection
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
+
 
 def main():
     minio_conn = MinIOConnection()
@@ -18,6 +20,7 @@ def main():
         data_object=data_object,
     )
 
+
 if __name__ == "__main__":
     main()
-    # python3 -m scripts.test.test_minio_conn
+    # python3 -m scripts.demo.test_minio_conn

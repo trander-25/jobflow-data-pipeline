@@ -1,5 +1,6 @@
-import requests
 from io import BytesIO
+
+import requests
 from PIL import Image
 
 
@@ -31,7 +32,7 @@ class ImageDownloader:
         Final output: raw bytes of the image (Optimized PNG)
         """
         content = self._download(url)
-        
+
         # Chỉ nén và chuyển thành PNG, không xóa nền
         return self._optimize_image(content)
 
@@ -43,9 +44,9 @@ class ImageDownloader:
     def _optimize_image(self, content: bytes) -> bytes:
         # Mở ảnh bằng Pillow
         img = Image.open(BytesIO(content))
-        
+
         # Lưu lại dưới dạng PNG đã tối ưu dung lượng
         buffer = BytesIO()
         img.save(buffer, format="PNG", optimize=True)
-        
+
         return buffer.getvalue()
