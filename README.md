@@ -62,7 +62,7 @@ The project is designed around a modern lakehouse-style workflow: Airflow orches
 ## Quick Start
 
 ```bash
-docker compose up --build
+make run
 ```
 
 After the containers are ready, open:
@@ -70,6 +70,17 @@ After the containers are ready, open:
 - Airflow: http://localhost:8080
 - Trino: http://localhost:8081
 - MinIO Console: http://localhost:9001
+
+Useful local commands:
+
+```bash
+make help
+make docker-ps
+make docker-logs
+make docker-down
+```
+
+`make run` creates `.env` from `.env.example` when `.env` does not exist, builds and starts the Docker Compose stack, then prints the local service URLs.
 
 ## Roadmap
 

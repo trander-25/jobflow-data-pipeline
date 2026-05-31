@@ -1,0 +1,22 @@
+[tool.black]
+line-length = 88
+target-version = ["py311", "py312"]
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  \.git
+  | \.venv
+  | __pycache__
+  | airflow/dbt_jobflow
+  | logs
+)/
+'''
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["airflow/scripts/test"]
+python_files = ["test_*.py"]
+pythonpath = ["airflow"]
+addopts = [
+    "-ra",
+]

@@ -1,0 +1,38 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: ^airflow/dbt_jobflow/(target|logs|dbt_packages)/
+      - id: end-of-file-fixer
+        exclude: ^airflow/dbt_jobflow/(target|logs|dbt_packages)/
+      - id: check-yaml
+      - id: check-added-large-files
+
+  - repo: https://github.com/psf/black
+    rev: 25.1.0
+    hooks:
+      - id: black
+        files: ^airflow/(dags|scripts|tasks)/.*\.py$
+
+  - repo: https://github.com/PyCQA/flake8
+    rev: 7.1.1
+    hooks:
+      - id: flake8
+        files: ^airflow/(dags|scripts|tasks)/.*\.py$
+
+  - repo: https://github.com/sqlfluff/sqlfluff
+    rev: 3.3.1
+    hooks:
+      - id: sqlfluff-lint
+        args: ["--dialect", "trino"]
+        files: ^airflow/dbt_jobflow/(models|macros)/.*\.sql$
+
+  - repo: local
+    hooks:
+      - id: pytest
+        name: pytest
+        entry: .venv/bin/python -m pytest
+        language: system
+        pass_filenames: false
+        files: ^airflow/(dags|scripts|tasks)/.*\.py$
