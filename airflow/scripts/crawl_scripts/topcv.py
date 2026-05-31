@@ -53,9 +53,7 @@ class TopCVScraper:
     def _init_driver(self) -> webdriver.Chrome:
         """Initialize Chrome WebDriver."""
         logger.info("Initializing ChromeDriver...")
-        return webdriver.Chrome(
-            service=Service(self._driver_path), options=self._get_chrome_options()
-        )
+        return webdriver.Chrome(service=Service(self._driver_path), options=self._get_chrome_options())
 
     def _extract_job_info(self, job) -> tuple:
         """Extract basic job information from job listing."""
@@ -65,9 +63,7 @@ class TopCVScraper:
         logo = img_tag.get("src") or img_tag.get("data-src", "")
         job_url = _safe_attr(_safe_find(job, "a"), "href").split("?ta_source")[0]
         location = _safe_text(_safe_find(job.find("label", class_="address"), "span"))
-        salary = _safe_text(
-            job.find("label", class_="title-salary") or job.find("label", class_="salary")
-        )
+        salary = _safe_text(job.find("label", class_="title-salary") or job.find("label", class_="salary"))
         exp = _safe_text(_safe_find(job.find("label", class_="exp"), "span"))
         return title, company, logo, job_url, location, salary, exp
 
@@ -181,9 +177,7 @@ class TopCVScraper:
         driver = self._init_driver()
         driver.get(url)
 
-        WebDriverWait(driver, 30).until(
-            lambda d: d.find_elements(By.CSS_SELECTOR, "div.job-item-search-result")
-        )
+        WebDriverWait(driver, 30).until(lambda d: d.find_elements(By.CSS_SELECTOR, "div.job-item-search-result"))
         time.sleep(0.5 + random.uniform(0.5, 2.5))
         page_source = driver.page_source
         soup = BeautifulSoup(page_source, "html.parser")
@@ -229,42 +223,28 @@ class TopCVScraper:
                         detail_driver.get(job_url)
                         try:
                             WebDriverWait(detail_driver, 30).until(
-                                lambda d: d.execute_script("return document.body.innerText.length")
-                                > 250
+                                lambda d: d.execute_script("return document.body.innerText.length") > 250
                             )
                         except TimeoutException:
-                            logger.warning(
-                                f"Timeout waiting for job details to load for URL: {job_url}"
-                            )
+                            logger.warning(f"Timeout waiting for job details to load for URL: {job_url}")
                             # detail_driver.quit()
                             time.sleep(0.5 + random.uniform(0.5, 1.5))
                             continue
 
                         job_soup = BeautifulSoup(detail_driver.page_source, "html.parser")
 
-                        job_cat_div = job_soup.find(
-                            "div", string=lambda x: x and "Chuyên môn:" in x
-                        )
+                        job_cat_div = job_soup.find("div", string=lambda x: x and "Chuyên môn:" in x)
                         data["job_cat"] = (
-                            ", ".join(
-                                [
-                                    job_cat.text.strip()
-                                    for job_cat in job_cat_div.find_next("div").find_all("a")
-                                ]
-                            )
+                            ", ".join([job_cat.text.strip() for job_cat in job_cat_div.find_next("div").find_all("a")])
                             if job_cat_div
                             else None
                         )
 
                         if "topcv.vn/brand/" in job_url.strip():
-                            descriptions, requirements, edu, type_of_work = self._parse_brand_job(
-                                job_soup
-                            )
+                            descriptions, requirements, edu, type_of_work = self._parse_brand_job(job_soup)
                         elif "topcv.vn/viec-lam/" in job_url.strip():
                             job_cat_div = job_soup.find("div", string="Chuyên môn:")
-                            descriptions, requirements, edu, type_of_work = self._parse_job_detail(
-                                job_soup
-                            )
+                            descriptions, requirements, edu, type_of_work = self._parse_job_detail(job_soup)
                         else:
                             descriptions = requirements = edu = type_of_work = None
 

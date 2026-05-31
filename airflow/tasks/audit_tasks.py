@@ -118,11 +118,7 @@ class AuditLogger:
                 task_name = task_id
                 # Try to get task group from task_instance
                 task_group = getattr(task_instance, "group_name", None)
-                if (
-                    not task_group
-                    and hasattr(task_instance, "task")
-                    and hasattr(task_instance.task, "group_id")
-                ):
+                if not task_group and hasattr(task_instance, "task") and hasattr(task_instance.task, "group_id"):
                     task_group = task_instance.task.group_id
             else:
                 # Fallback: try to extract from context
@@ -181,9 +177,7 @@ class AuditLogger:
                 operator = str(type(task_instance.task).__name__)
 
             # Get Discord channel ID if applicable
-            discord_channel_id = (
-                os.getenv("DISCORD_CHANNEL_ID") if rows_posted_discord > 0 else None
-            )
+            discord_channel_id = os.getenv("DISCORD_CHANNEL_ID") if rows_posted_discord > 0 else None
 
             # Merge additional metadata
             if additional_metadata:
@@ -274,9 +268,7 @@ class AuditLogger:
                 "error_message": error_message[:5000] if error_message else None,  # Limit size
                 "error_type": error_type,
                 "log_url": log_url,
-                "exception_traceback": exception_traceback[:10000]
-                if exception_traceback
-                else None,  # Limit size
+                "exception_traceback": exception_traceback[:10000] if exception_traceback else None,  # Limit size
                 "discord_posts_sent": rows_posted_discord,
                 "discord_posts_failed": discord_posts_failed,
                 "discord_channel_id": discord_channel_id,
@@ -290,9 +282,7 @@ class AuditLogger:
                     try:
                         conn.execute(insert_query, params)
                         trans.commit()
-                        logger.info(
-                            f"Audit log inserted for task {task_id} with status {task_status}"
-                        )
+                        logger.info(f"Audit log inserted for task {task_id} with status {task_status}")
                     except self.SQLAlchemyError as e:
                         trans.rollback()
                         logger.error(f"Error inserting audit log: {e}")
@@ -395,9 +385,7 @@ def discord_task_callback(context):
 
     # Determine data source from task_id
     task_id = context.get("task_instance").task_id if context.get("task_instance") else ""
-    data_source = (
-        "itviec" if "itviec" in task_id.lower() else "topcv" if "topcv" in task_id.lower() else None
-    )
+    data_source = "itviec" if "itviec" in task_id.lower() else "topcv" if "topcv" in task_id.lower() else None
 
     audit_logger.log_task_execution(
         context=context,

@@ -32,9 +32,7 @@ def load_crawl_sources_url(source_crawl: str):
     return data
 
 
-def upload_crawl_data_to_minio(
-    data: List[Dict], source_crawl: str, bucket_name: str = "crawled-data"
-):
+def upload_crawl_data_to_minio(data: List[Dict], source_crawl: str, bucket_name: str = "crawled-data"):
     """Upload crawl data to MinIO.
     Args:
         data (List[Dict]): The crawl data to upload.
@@ -54,9 +52,7 @@ def upload_crawl_data_to_minio(
     destination_file = f"{source_crawl}/{source_crawl}_{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}_jobs.json"
 
     try:
-        minio_conn.upload_data_object(
-            bucket_name=bucket_name, destination_file=destination_file, data_object=data
-        )
+        minio_conn.upload_data_object(bucket_name=bucket_name, destination_file=destination_file, data_object=data)
         logger.info(f"Uploaded {len(data)} {source_crawl} jobs to MinIO at {destination_file}")
         return destination_file
     except Exception as e:
@@ -137,9 +133,7 @@ def scrape_source_job(sources: dict, source_crawl: str):
     deduped_jobs = deduplicate_jobs(total_data_job)
 
     source_expectations = itviec_expectations if source_crawl == "itviec" else topcv_expectations
-    run_ge_validation(
-        records=deduped_jobs, expectation_fn=source_expectations, source_name=source_crawl
-    )
+    run_ge_validation(records=deduped_jobs, expectation_fn=source_expectations, source_name=source_crawl)
 
     upload_file_path = upload_crawl_data_to_minio(data=deduped_jobs, source_crawl=source_crawl)
     return_dict = {
@@ -236,14 +230,10 @@ def download_logos_and_upload_to_minio(data: list[dict]):
         logo_url = logo_item.get("logo_url") if isinstance(logo_item, dict) else logo_item
         try:
             content = image_downloader._process_single(logo_url)
-            object_name, ext = minio_conn.upload_file(
-                bucket_name="crawled-data", source_url=logo_url, content=content
-            )
+            object_name, ext = minio_conn.upload_file(bucket_name="crawled-data", source_url=logo_url, content=content)
             # Encode content to base64 for the logo_path
             encoded_content = base64.b64encode(content).decode("utf-8")
-            results.append(
-                {"logo_url": logo_url, "logo_path": f"data:image/{ext};base64,{encoded_content}"}
-            )
+            results.append({"logo_url": logo_url, "logo_path": f"data:image/{ext};base64,{encoded_content}"})
             logger.info(f"Uploaded logo for {logo_url} to MinIO at {object_name}")
         except Exception as e:
             logger.error(f"Error processing logo {logo_url}: {e}")
@@ -296,9 +286,7 @@ def post_job_to_discord(crawl_source: str):
         posts_send, posts_failed_sent = send_job_alerts(jobs, DISCORD_TOKEN, DISCORD_CHANNEL_ID)
         mark_jobs_as_posted(
             table_name="itviec_data_job", job_urls=urls
-        ) if crawl_source == "itviec" else mark_jobs_as_posted(
-            table_name="topcv_data_job", job_urls=urls
-        )
+        ) if crawl_source == "itviec" else mark_jobs_as_posted(table_name="topcv_data_job", job_urls=urls)
         return_dict = {"posts_sent": posts_send, "posts_failed": posts_failed_sent}
         return return_dict
     except Exception as e:

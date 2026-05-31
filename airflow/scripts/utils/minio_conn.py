@@ -69,9 +69,7 @@ class MinIOConnection:
             logger.info("Upload successful: %s/%s", bucket_name, destination_file)
             return True
         except S3Error as e:
-            logger.error(
-                "Upload failed: %s/%s. Error: %s", bucket_name, destination_file, e, exc_info=True
-            )
+            logger.error("Upload failed: %s/%s. Error: %s", bucket_name, destination_file, e, exc_info=True)
             return False
 
     def read_file(self, bucket_name: str, object_name: str):

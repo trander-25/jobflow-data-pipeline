@@ -1,5 +1,5 @@
 # Base image using the official Airflow image
-FROM apache/airflow:2.9.1-python3.11
+FROM apache/airflow:2.9.1-python3.12
 
 USER root
 

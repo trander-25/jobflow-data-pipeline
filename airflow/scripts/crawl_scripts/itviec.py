@@ -43,9 +43,7 @@ class ITViecScraper:
 
     def _init_driver(self) -> webdriver.Chrome:
         logger.info("Initializing ChromeDriver...")
-        return webdriver.Chrome(
-            service=Service(self._driver_path), options=self._get_chrome_options()
-        )
+        return webdriver.Chrome(service=Service(self._driver_path), options=self._get_chrome_options())
 
     def _extract_text(self, section) -> Optional[str]:
         try:
@@ -70,21 +68,15 @@ class ITViecScraper:
     def _load_detail_soup(self, driver: webdriver.Chrome, url: str) -> BeautifulSoup:
         driver.get(url)
         try:
-            WebDriverWait(driver, 30).until(
-                lambda d: d.execute_script("return document.body.innerText.length") > 250
-            )
+            WebDriverWait(driver, 30).until(lambda d: d.execute_script("return document.body.innerText.length") > 250)
         except TimeoutException:
             logger.warning(f"Timeout waiting for job details to load for URL: {url}")
         return BeautifulSoup(driver.page_source, "html.parser")
 
-    def _apply_detail_data(
-        self, data: Dict[str, Optional[str]], detail_soup: BeautifulSoup
-    ) -> None:
+    def _apply_detail_data(self, data: Dict[str, Optional[str]], detail_soup: BeautifulSoup) -> None:
         job_cat_div = detail_soup.find("div", string="Job Expertise:")
         data["job_cat"] = (
-            ", ".join(
-                [job_cat.text.strip() for job_cat in job_cat_div.find_next("div").find_all("a")]
-            )
+            ", ".join([job_cat.text.strip() for job_cat in job_cat_div.find_next("div").find_all("a")])
             if job_cat_div
             else None
         )
@@ -109,9 +101,7 @@ class ITViecScraper:
         finally:
             retry_driver.quit()
 
-    def scrape_jobs(
-        self, url: str, max_jobs: Optional[int] = None
-    ) -> List[Dict[str, Optional[str]]]:
+    def scrape_jobs(self, url: str, max_jobs: Optional[int] = None) -> List[Dict[str, Optional[str]]]:
         driver = self._init_driver()
         driver.get(url)
         time.sleep(3)
@@ -157,9 +147,7 @@ class ITViecScraper:
 
                 data["logo"] = _safe_attr(_safe_find(company_el, "img"), "data-src")
 
-                data["mode"] = _safe_text(
-                    _safe_find(job, "div", class_="text-rich-grey flex-shrink-0")
-                )
+                data["mode"] = _safe_text(_safe_find(job, "div", class_="text-rich-grey flex-shrink-0"))
 
                 location_el = _safe_find(
                     job,
@@ -179,14 +167,8 @@ class ITViecScraper:
                         detail_soup = self._load_detail_soup(detail_driver, data["url"])
                         self._apply_detail_data(data, detail_soup)
 
-                        if (
-                            self._is_challenge_page(detail_soup)
-                            or not data["descriptions"]
-                            or not data["requirements"]
-                        ):
-                            logger.warning(
-                                f"Retrying job detail with a fresh driver for URL: {data['url']}"
-                            )
+                        if self._is_challenge_page(detail_soup) or not data["descriptions"] or not data["requirements"]:
+                            logger.warning(f"Retrying job detail with a fresh driver for URL: {data['url']}")
                             self._retry_detail_with_fresh_driver(data)
 
                     finally:

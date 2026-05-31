@@ -41,9 +41,7 @@ def run_ge_validation(records: list[dict], expectation_fn, source_name: str) -> 
         ]
 
         unexp_list = [
-            f"Unexpected List: {r.result['partial_unexpected_list']}"
-            for r in result.results
-            if not r.success
+            f"Unexpected List: {r.result['partial_unexpected_list']}" for r in result.results if not r.success
         ]
 
         raise ValueError(

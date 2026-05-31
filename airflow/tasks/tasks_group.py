@@ -40,9 +40,7 @@ def itviec_pipeline():
 
     @task(on_success_callback=task_success_callback, on_failure_callback=task_failure_callback)
     def insert_jobs_itviec(data):
-        return insert_jobs_to_staging_layer(
-            data_file_path=data["uploaded_file_path"], source_crawl="itviec"
-        )
+        return insert_jobs_to_staging_layer(data_file_path=data["uploaded_file_path"], source_crawl="itviec")
 
     get_source_task = load_itviec_url()
     scrape_task = scrape_itviec_job(get_source_task)
@@ -64,9 +62,7 @@ def topcv_pipeline():
 
     @task(on_success_callback=task_success_callback, on_failure_callback=task_failure_callback)
     def insert_jobs_topcv(data):
-        return insert_jobs_to_staging_layer(
-            data_file_path=data["uploaded_file_path"], source_crawl="topcv"
-        )
+        return insert_jobs_to_staging_layer(data_file_path=data["uploaded_file_path"], source_crawl="topcv")
 
     get_source_task = load_topcv_url()
     scrape_task = scrape_topcv_job(get_source_task)
@@ -175,16 +171,6 @@ def dbt_wh_pipeline():
     reports = process_reports_wh_layer()
     test_reports = reports_wh_layer_test_models()
     audit = process_audit_wh_layer()
-    (
-        bronze
-        >> test_bronze
-        >> silver
-        >> test_silver
-        >> gold
-        >> test_gold
-        >> reports
-        >> test_reports
-        >> audit
-    )
+    (bronze >> test_bronze >> silver >> test_silver >> gold >> test_gold >> reports >> test_reports >> audit)
 
     return bronze
