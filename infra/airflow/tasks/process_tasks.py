@@ -292,3 +292,65 @@ def post_job_to_discord(crawl_source: str):
     except Exception as e:
         logger.error(f"Error sending job alerts to Discord: {e}")
         raise
+
+
+def getting_data_for_embedding_task():
+    import os
+
+    from airflow.providers.trino.hooks.trino import TrinoHook
+
+    trino_conn_id = os.getenv("TRINO_CONN_ID", "trino_default")
+    try:
+        hook = TrinoHook(trino_conn_id=trino_conn_id)
+
+        sql = """
+            SELECT
+                job_id,
+                source_platform,
+                url,
+                job_title,
+                company_name,
+                job_locations,
+                job_category,
+                work_model_normalized,
+                work_arrangement_normalized,
+                year_of_experiences,
+                experiences_level,
+                salary,
+                salary_band,
+                job_posted_date,
+                job_posted_timestamp,
+                embedding_text
+            FROM iceberg.vector_db.vector_db
+            WHERE embedding_text IS NOT NULL
+                AND TRIM(embedding_text) <> ''
+                AND dbt_load_timestamp >= current_timestamp - INTERVAL '1' HOUR
+        """
+
+        conn = hook.get_conn()
+        cursor = conn.cursor()
+        cursor.execute(sql)
+
+        records = cursor.fetchall()
+        columns = [col[0] for col in cursor.description]
+
+        cleaned_records = []
+        for row in records:
+            new_row = {}
+            for col, val in zip(columns, row):
+                if isinstance(val, bytes):
+                    new_row[col] = val.hex()
+                else:
+                    new_row[col] = val
+            cleaned_records.append(new_row)
+    except Exception as e:
+        logger.error(f"Error retrieving data for embedding: {e}")
+        raise
+    logger.info(f"Retrieved {len(cleaned_records)} records for embedding.")
+    return cleaned_records
+
+
+def embed_and_save_data_task(data: list[dict]):
+    from scripts.utils.embed_data_vector_db import embed_and_save_data
+
+    return embed_and_save_data(data)

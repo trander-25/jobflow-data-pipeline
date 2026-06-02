@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from airflow.decorators import dag
 from tasks.tasks_group import (
     dbt_wh_pipeline,
+    embedding_data_vector_db_group,
     itviec_pipeline,
     post_job_group,
     process_company_logos_group,
@@ -16,7 +17,7 @@ from tasks.tasks_group import (
 default_args = {
     "owner": "trander",
     "depends_on_past": False,
-    "retries": 3,
+    "retries": 1,
     "retry_delay": timedelta(seconds=30),
 }
 
@@ -41,14 +42,15 @@ def master_elt():
 
     post_tasks = post_job_group()
     process_image_task = process_company_logos_group()
-    bronze_task = dbt_wh_pipeline()
+    dbt_tasks = dbt_wh_pipeline()
+    embedding_tasks = embedding_data_vector_db_group()
 
     itviec_insert >> post_tasks["itviec"]
     topcv_insert >> post_tasks["topcv"]
     itviec_insert >> process_image_task["insert_logos"]
     topcv_insert >> process_image_task["insert_logos"]
-    process_image_task["update_logos"] >> bronze_task
-    [itviec_insert, topcv_insert] >> bronze_task
+    [itviec_insert, topcv_insert] >> dbt_tasks["start"]
+    dbt_tasks["end"] >> embedding_tasks["start"]
 
 
 dag = master_elt()

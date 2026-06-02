@@ -31,13 +31,9 @@ clean-targets:         # directories to be removed by `dbt clean`
 # files using the `{{ config(...) }}` macro.
 models:
   dbt_jobflow:
-    # Config indicated by + and applies to all files under models/example/
-    example:
-      +materialized: view
-
     bronze:
       +schema: bronze
-      +materialized: table
+      +materialized: incremental
 
     silver:
       +schema: silver
@@ -53,4 +49,8 @@ models:
 
     audit:
       +schema: audit
-      +materialized: table
+      +materialized: incremental
+
+    vector_db:
+      +schema: vector_db
+      +materialized: incremental

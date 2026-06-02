@@ -228,7 +228,9 @@ Important variables:
 | `MINIO_USER` / `MINIO_PASSWORD` | MinIO root credentials. |
 | `MINIO_API_PORT` / `MINIO_CONSOLE_PORT` | MinIO host ports. |
 | `TRINO_VERSION` / `TRINO_HOST_PORT` | Trino image version and host port. |
+| `TRINO_CONN_ID` | Airflow connection id used by embedding tasks to query Trino. |
 | `CHROMA_VERSION` / `CHROMA_HOST_PORT` | Chroma image version and host port. |
+| `CHROMA_COLLECTION_NAME` / `CHROMA_BATCH_SIZE` | Chroma collection and batch size used by embedding tasks. |
 | `MONGODB_VERSION` / `MONGODB_HOST_PORT` | MongoDB image version and host port. |
 | `REDIS_VERSION` / `REDIS_HOST_PORT` | Redis image version and host port. |
 | `AIRFLOW_WEBSERVER_SECRET_KEY` | Airflow webserver secret key. |

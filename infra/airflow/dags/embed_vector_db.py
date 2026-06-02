@@ -1,3 +1,4 @@
+import logging
 import os
 import sys
 
@@ -5,27 +6,31 @@ sys.path.insert(1, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from datetime import datetime, timedelta
 
 from airflow.decorators import dag
-from tasks.tasks_group import topcv_pipeline
+from tasks.tasks_group import embedding_data_vector_db_group
+
+logger = logging.getLogger(__name__)
+if not logger.handlers:
+    logging.basicConfig(level=logging.INFO)
 
 # Define DAG
 default_args = {
     "owner": "trander",
     "depends_on_past": False,
-    "start_date": datetime(2026, 1, 1),
+    "start_date": datetime(2025, 1, 1),
     "retries": 1,
     "retry_delay": timedelta(seconds=30),
 }
 
 
 @dag(
-    dag_id="topcv_pipeline",
+    dag_id="embed_vector_db_pipeline",
     default_args=default_args,
     schedule=None,
     catchup=False,
-    tags=["topcv_pipeline"],
+    tags=["embed_pipeline"],
 )
-def _topcv_pipeline():
-    topcv_pipeline()
+def _embed_vector_db_group_task():
+    embedding_data_vector_db_group()
 
 
-dag = _topcv_pipeline()
+dag = _embed_vector_db_group_task()
