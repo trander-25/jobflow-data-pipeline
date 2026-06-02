@@ -1,0 +1,27 @@
+services:
+  postgresql_db:
+    image: postgres:16.4
+    container_name: postgresql_db
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER:-user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
+      POSTGRES_DB: ${DB_AIRFLOW:-airflow_db}
+      DB_JOB: ${DB_JOB:-job_db}
+      DB_TRINO: ${DB_TRINO:-catalog_wh}
+    ports:
+      - "${POSTGRES_HOST_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init_db/init.sql:/docker-entrypoint-initdb.d/01_create_databases.sql
+      - ./init_schema_table/init_schema_tables.sql:/docker-entrypoint-initdb.d/02_create_schema_tables_job_db.sql
+      - ./init_wh_catalog/init_catalog_tables.sql:/docker-entrypoint-initdb.d/03_create_catalog_tables_trino.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+    name: ${POSTGRES_VOLUME_NAME:-jobflow_postgres_data}

@@ -5,7 +5,7 @@ extend-exclude = [
     ".git",
     ".venv",
     "__pycache__",
-    "airflow/dbt_jobflow",
+    "infra/airflow/dbt_jobflow",
     "logs",
 ]
 
@@ -24,9 +24,9 @@ line-ending = "auto"
 
 [tool.pytest.ini_options]
 minversion = "8.0"
-testpaths = ["airflow/scripts/tests"]
+testpaths = ["infra/airflow/scripts/tests"]
 python_files = ["test_*.py"]
-pythonpath = ["airflow"]
+pythonpath = ["infra/airflow"]
 addopts = [
     "-ra",
 ]

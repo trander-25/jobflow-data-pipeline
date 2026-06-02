@@ -17,11 +17,11 @@ concurrency:
 
 env:
   PYTHON_VERSION: "3.12"
-  PYTHONPATH: airflow
+  PYTHONPATH: infra/airflow
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository_owner }}/jobflow-data-pipeline-airflow
-  CODE_PATHS: airflow/dags airflow/scripts airflow/tasks
-  DBT_PROJECT_DIR: airflow/dbt_jobflow
+  CODE_PATHS: infra/airflow/dags infra/airflow/scripts infra/airflow/tasks
+  DBT_PROJECT_DIR: infra/airflow/dbt_jobflow
 
 jobs:
   # ==================== CODE QUALITY ====================
@@ -82,7 +82,7 @@ jobs:
       - name: Run tests with pytest
         run: |
           python -m pytest \
-            --cov=airflow \
+            --cov=infra/airflow \
             --cov-report=xml \
             --cov-report=term-missing
 
@@ -147,7 +147,7 @@ jobs:
 
       - name: Scan Python code with Bandit
         continue-on-error: true
-        run: bandit -r airflow -x airflow/scripts/tests,airflow/scripts/demo
+        run: bandit -r infra/airflow -x infra/airflow/scripts/tests,infra/airflow/scripts/demo
 
       - name: Audit Python dependencies
         continue-on-error: true
@@ -207,6 +207,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Create compose environment file
+        run: cp .env.example .env
+
       - name: Validate docker-compose.yml
         run: docker compose -f docker-compose.yml config --quiet
 
@@ -239,7 +242,7 @@ jobs:
           python - <<'PY'
           from airflow.models.dagbag import DagBag
 
-          dag_bag = DagBag(dag_folder="airflow/dags", include_examples=False)
+          dag_bag = DagBag(dag_folder="infra/airflow/dags", include_examples=False)
 
           if dag_bag.import_errors:
               print("Airflow DAG import errors found:")

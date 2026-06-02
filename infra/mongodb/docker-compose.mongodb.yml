@@ -1,0 +1,37 @@
+services:
+  mongodb:
+    image: mongo:${MONGODB_VERSION:-8.0}
+    container_name: mongodb
+    restart: always
+    ports:
+      - "${MONGODB_HOST_PORT:-27017}:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGODB_USERNAME:-user}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_PASSWORD:-password}
+      MONGO_INITDB_DATABASE: ${MONGODB_DB:-jobflow}
+    volumes:
+      - mongodb_data:/data/db
+      - ./init_mongodb.js:/docker-entrypoint-initdb.d/init_mongodb.js
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mongosh",
+          "--quiet",
+          "--username",
+          "${MONGODB_USERNAME:-user}",
+          "--password",
+          "${MONGODB_PASSWORD:-password}",
+          "--authenticationDatabase",
+          "admin",
+          "--eval",
+          "db.adminCommand('ping')",
+        ]
+      interval: 10s
+      timeout: 30s
+      retries: 50
+      start_period: 30s
+
+volumes:
+  mongodb_data:
+    name: ${MONGODB_VOLUME_NAME:-jobflow_mongodb_data}
