@@ -14,6 +14,7 @@ x-airflow-common: &airflow-common
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
     AIRFLOW__CORE__LOAD_EXAMPLES: "false"
     AIRFLOW_CONN_TRINO_DEFAULT: trino://trino@trino:8080/default
+    TRINO_CONN_ID: ${TRINO_CONN_ID:-trino_default}
     DBT_TARGET: airflow
     DB_HOST: ${DB_HOST:-postgresql_db}
     DB_PORT: ${DB_PORT:-5432}
@@ -34,6 +35,8 @@ x-airflow-common: &airflow-common
     MONGODB_HOST: ${MONGODB_HOST:-mongodb}
     MONGODB_PORT: ${MONGODB_PORT:-27017}
     MONGODB_DB: ${MONGODB_DB:-jobflow}
+    CHROMA_COLLECTION_NAME: ${CHROMA_COLLECTION_NAME:-job_embeddings}
+    CHROMA_BATCH_SIZE: ${CHROMA_BATCH_SIZE:-100}
     DISCORD_TOKEN: ${DISCORD_TOKEN:-}
     DISCORD_CHANNEL_ID: ${DISCORD_CHANNEL_ID:-}
     EMAIL: ${EMAIL:-no_need}

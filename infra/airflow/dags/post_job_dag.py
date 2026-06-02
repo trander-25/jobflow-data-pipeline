@@ -10,7 +10,7 @@ from tasks.tasks_group import post_job_group
 default_args = {
     "owner": "trander",
     "depends_on_past": False,
-    "retries": 3,
+    "retries": 1,
     "retry_delay": timedelta(seconds=30),
 }
 

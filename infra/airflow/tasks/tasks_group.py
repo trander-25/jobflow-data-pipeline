@@ -9,6 +9,8 @@ from tasks.audit_tasks import (
 )
 from tasks.process_tasks import (
     download_logos_and_upload_to_minio,
+    embed_and_save_data_task,
+    getting_data_for_embedding_task,
     insert_company_logos_to_staging_layer,
     insert_jobs_to_staging_layer,
     load_crawl_sources_url,
@@ -117,6 +119,11 @@ def post_job_group():
 @task_group
 def dbt_wh_pipeline():
     @task.bash(on_success_callback=dbt_task_callback, on_failure_callback=task_failure_callback)
+    def seed_mapping_tables():
+        logger.info("Starting seed mapping tables!!!")
+        return f"dbt seed --select job_category_mapping vn_city_mapping --project-dir {PROJECT_DIR} --profiles-dir {PROFILE_DIR} {DBT_RUNTIME_ARGS}"
+
+    @task.bash(on_success_callback=dbt_task_callback, on_failure_callback=task_failure_callback)
     def process_bronze_wh_layer():
         logger.info("Starting process data to bronze layer!!!")
         return f"dbt run --select bronze --project-dir {PROJECT_DIR} --profiles-dir {PROFILE_DIR} {DBT_RUNTIME_ARGS}"
@@ -161,6 +168,7 @@ def dbt_wh_pipeline():
         logger.info("Starting process data to audit layer!!!")
         return f"dbt run --select audit --project-dir {PROJECT_DIR} --profiles-dir {PROFILE_DIR} {DBT_RUNTIME_ARGS}"
 
+    seeds = seed_mapping_tables()
     bronze = process_bronze_wh_layer()
     test_bronze = bronze_wh_layer_test_models()
     silver = process_silver_wh_layer()
@@ -170,6 +178,36 @@ def dbt_wh_pipeline():
     reports = process_reports_wh_layer()
     test_reports = reports_wh_layer_test_models()
     audit = process_audit_wh_layer()
-    (bronze >> test_bronze >> silver >> test_silver >> gold >> test_gold >> reports >> test_reports >> audit)
+    (seeds >> bronze >> test_bronze >> silver >> test_silver >> gold >> test_gold >> reports >> test_reports >> audit)
 
-    return bronze
+    return {"start": seeds, "end": audit}
+
+
+@task_group
+def embedding_data_vector_db_group():
+    @task.bash(on_success_callback=dbt_task_callback, on_failure_callback=task_failure_callback)
+    def process_vector_db_layer():
+        logger.info("Starting process data to vector_db layer!!!")
+        return f"dbt run --select vector_db --project-dir {PROJECT_DIR} --profiles-dir {PROFILE_DIR} {DBT_RUNTIME_ARGS}"
+
+    @task(
+        on_success_callback=task_success_callback,
+        on_failure_callback=task_failure_callback,
+    )
+    def retrieve_data_from_lakehouse() -> list[dict]:
+        data_for_embedding = getting_data_for_embedding_task()
+        return data_for_embedding if data_for_embedding else []
+
+    @task(
+        on_success_callback=task_success_callback,
+        on_failure_callback=task_failure_callback,
+    )
+    def embedding_data_vector_db(data: list[dict]):
+        return embed_and_save_data_task(data)
+
+    vector_db = process_vector_db_layer()
+    data = retrieve_data_from_lakehouse()
+    embedded = embedding_data_vector_db(data)
+    vector_db >> data >> embedded
+
+    return {"start": vector_db, "end": embedded}
