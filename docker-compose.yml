@@ -6,6 +6,8 @@ include:
   - path: ./infra/chroma/docker-compose.chroma.yml
   - path: ./infra/redis/docker-compose.redis.yml
   - path: ./infra/mongodb/docker-compose.mongodb.yml
+  - path: ./apps/api/docker-compose.api.yml
+  - path: ./apps/bot/docker-compose.bot.yml
 
 networks:
   default:
