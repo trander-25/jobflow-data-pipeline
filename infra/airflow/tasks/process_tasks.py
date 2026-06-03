@@ -120,7 +120,7 @@ def scrape_source_job(sources: dict, source_crawl: str):
     for source, url in sources.items():
         logger.info(f"Processing source: {source} with URL: {url}")
         try:
-            dict_jobs = crawler.crawler(url, max_jobs=5)
+            dict_jobs = crawler.crawler(url, max_jobs=100)
             if dict_jobs:
                 logger.info(f"Successfully scraped {len(dict_jobs)} jobs from {source_crawl}")
                 total_data_job += dict_jobs
