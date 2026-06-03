@@ -55,30 +55,6 @@ class TopCVScraper:
         logger.info("Initializing ChromeDriver...")
         return webdriver.Chrome(service=Service(self._driver_path), options=self._get_chrome_options())
 
-    def _preview_html(self, element, max_length: int = 500) -> str:
-        if element is None:
-            return "<None>"
-
-        html = " ".join(str(element).split())
-        return html[:max_length] + "..." if len(html) > max_length else html
-
-    def _log_job_state(self, level: int, message: str, idx: int, total: int, data: Dict[str, Optional[str]]) -> None:
-        logger.log(
-            level,
-            "%s | job=%s/%s title=%r company=%r url=%r desc=%s req=%s exp=%r edu=%r type_of_work=%r",
-            message,
-            idx,
-            total,
-            data.get("title"),
-            data.get("company"),
-            data.get("url"),
-            bool(data.get("descriptions")),
-            bool(data.get("requirements")),
-            data.get("experience"),
-            data.get("education"),
-            data.get("type_of_work"),
-        )
-
     def _is_challenge_page(self, soup: BeautifulSoup) -> bool:
         title_text = (soup.title.get_text(strip=True) if soup.title else "").lower()
         body_text = soup.get_text(" ", strip=True).lower()
@@ -92,18 +68,58 @@ class TopCVScraper:
         ]
         return any(signal in title_text or signal in body_text for signal in challenge_signals)
 
+    def _load_detail_soup(self, driver: webdriver.Chrome, url: str, idx: int, total: int) -> Optional[BeautifulSoup]:
+        logger.info("Loading TopCV detail page | job=%s/%s url=%s", idx, total, url)
+        try:
+            driver.get(url)
+            WebDriverWait(driver, 30).until(
+                lambda d: d.execute_script("return document.body.innerText.length") > 250
+            )
+        except TimeoutException:
+            logger.warning("Timeout waiting for job details to load for URL: %s", url)
+        except Exception as e:
+            logger.warning("Error loading URL %s: %s", url, e)
+
+        try:
+            page_source = driver.page_source
+            soup = BeautifulSoup(page_source, "html.parser")
+            return soup
+        except Exception as e:
+            logger.error("Failed to get page source or parse soup for URL %s: %s", url, e)
+            return None
+
+    def _apply_detail_data(self, data: Dict[str, Optional[str]], job_soup: BeautifulSoup) -> None:
+        job_url = data["url"] or ""
+        job_cat_div = job_soup.find("div", string=lambda x: x and "Chuyên môn:" in x)
+        data["job_cat"] = (
+            ", ".join([job_cat.text.strip() for job_cat in job_cat_div.find_next("div").find_all("a")])
+            if job_cat_div
+            else None
+        )
+
+        if "topcv.vn/brand/" in job_url.strip():
+            descriptions, requirements, edu, type_of_work = self._parse_brand_job(job_soup)
+        elif "topcv.vn/viec-lam/" in job_url.strip():
+            descriptions, requirements, edu, type_of_work = self._parse_job_detail(job_soup)
+        else:
+            descriptions = requirements = edu = type_of_work = None
+
+        data["descriptions"] = descriptions
+        data["requirements"] = requirements
+        data["education"] = edu
+        data["type_of_work"] = type_of_work
+
     def _extract_job_info(self, job) -> tuple:
         """Extract basic job information from job listing."""
         title = _safe_text(_safe_find(job, "h3"))
         company = _safe_text(_safe_find(job, "a", class_="company"))
         img_tag = job.find("img")
-        logo = (img_tag.get("src") or img_tag.get("data-src", "")) if img_tag else None
-        raw_job_url = _safe_attr(_safe_find(job, "a"), "href")
-        job_url = raw_job_url.split("?ta_source")[0] if raw_job_url else None
+        logo = img_tag.get("src") or img_tag.get("data-src", "")
+        job_url = _safe_attr(_safe_find(job, "a"), "href").split("?ta_source")[0]
         location = _safe_text(_safe_find(job.find("label", class_="address"), "span"))
         salary = _safe_text(job.find("label", class_="title-salary") or job.find("label", class_="salary"))
         exp = _safe_text(_safe_find(job.find("label", class_="exp"), "span"))
-        return title, company, logo, job_url, location, salary, exp, raw_job_url
+        return title, company, logo, job_url, location, salary, exp
 
     def _parse_brand_job(self, soup) -> tuple:
         """Parse job details from brand job page."""
@@ -139,9 +155,7 @@ class TopCVScraper:
         descriptions = requirements = edu = type_of_work = None
 
         # Parse descriptions and requirements
-        description_box_count = 0
         for div in soup.select("div.premium-job-description__box, div.box-info"):
-            description_box_count += 1
             title, content = extract_description_requirement(div)
 
             if not title:
@@ -155,9 +169,7 @@ class TopCVScraper:
                 break
 
         # Parse general info (education, type of work)
-        general_info_count = 0
         for div in soup.select("div.general-information-data, div.box-item"):
-            general_info_count += 1
             label, value = extract_general_info(div)
 
             if not label:
@@ -170,15 +182,6 @@ class TopCVScraper:
             if type_of_work and edu:
                 break
 
-        logger.info(
-            "Parsed TopCV brand detail | description_boxes=%s general_info_blocks=%s descriptions=%s requirements=%s edu=%r type_of_work=%r",
-            description_box_count,
-            general_info_count,
-            bool(descriptions),
-            bool(requirements),
-            edu,
-            type_of_work,
-        )
         return descriptions, requirements, edu, type_of_work
 
     def _parse_job_detail(self, soup) -> tuple:
@@ -186,8 +189,7 @@ class TopCVScraper:
 
         descriptions = requirements = edu = type_of_work = None
 
-        description_items = soup.select("div.job-description__item")
-        for div in description_items:
+        for div in soup.select("div.job-description__item"):
             h3 = _safe_find(div, "h3")
             content = _safe_find(div, "div", "job-description__item--content")
 
@@ -205,8 +207,7 @@ class TopCVScraper:
             if descriptions and requirements:
                 break
 
-        general_info_blocks = soup.find_all("div", class_="box-general-group-info")
-        for div in general_info_blocks:
+        for div in soup.find_all("div", class_="box-general-group-info"):
             title_div = _safe_find(div, "div", "box-general-group-info-title")
             value_div = _safe_find(div, "div", "box-general-group-info-value")
             if not title_div:
@@ -222,65 +223,24 @@ class TopCVScraper:
             if type_of_work and edu:
                 break
 
-        logger.info(
-            "Parsed TopCV standard detail | description_items=%s general_info_blocks=%s descriptions=%s requirements=%s edu=%r type_of_work=%r",
-            len(description_items),
-            len(general_info_blocks),
-            bool(descriptions),
-            bool(requirements),
-            edu,
-            type_of_work,
-        )
         return descriptions, requirements, edu, type_of_work
 
     def scrape_jobs(self, url: str, max_jobs: Optional[int] = None) -> List[Dict[str, str]]:
         """Main method to scrape jobs from TopCV."""
-        logger.info("Starting TopCV scrape | url=%s max_jobs=%s headless=%s", url, max_jobs, self.headless)
         # Initialize driver for listing page
         driver = self._init_driver()
         driver.get(url)
 
-        try:
-            WebDriverWait(driver, 30).until(lambda d: d.find_elements(By.CSS_SELECTOR, "div.job-item-search-result"))
-        except TimeoutException:
-            page_source = driver.page_source
-            soup = BeautifulSoup(page_source, "html.parser")
-            logger.error(
-                "Timeout waiting for TopCV listing jobs | url=%s title=%r body_text_len=%s html_len=%s challenge=%s html_preview=%s",
-                url,
-                soup.title.get_text(strip=True) if soup.title else None,
-                len(soup.get_text(" ", strip=True)),
-                len(page_source),
-                self._is_challenge_page(soup),
-                self._preview_html(soup.body),
-                exc_info=True,
-            )
-            driver.quit()
-            return []
-
+        WebDriverWait(driver, 30).until(lambda d: d.find_elements(By.CSS_SELECTOR, "div.job-item-search-result"))
         time.sleep(0.5 + random.uniform(0.5, 2.5))
         page_source = driver.page_source
         soup = BeautifulSoup(page_source, "html.parser")
-        is_listing_challenge = self._is_challenge_page(soup)
         jobs = soup.find_all("div", class_="job-item-search-result")
-        original_job_count = len(jobs)
         if max_jobs is not None:
             jobs = jobs[:max_jobs]
         driver.quit()
 
-        logger.info(
-            "Loaded TopCV listing | url=%s title=%r body_text_len=%s html_len=%s challenge=%s found_jobs=%s selected_jobs=%s",
-            url,
-            soup.title.get_text(strip=True) if soup.title else None,
-            len(soup.get_text(" ", strip=True)),
-            len(page_source),
-            is_listing_challenge,
-            original_job_count,
-            len(jobs),
-        )
-        if jobs:
-            logger.info("First TopCV listing job HTML preview: %s", self._preview_html(jobs[0]))
-            logger.info("Last TopCV listing job HTML preview: %s", self._preview_html(jobs[-1]))
+        logger.info(f"Found {len(jobs)} jobs")
 
         job_data: List[Dict[str, Optional[str]]] = []
         detail_driver = self._init_driver()
@@ -298,12 +258,11 @@ class TopCVScraper:
                 "experience": None,
                 "education": None,
                 "type_of_work": None,
-                "job_cat": None,
             }
             try:
-                logger.info("Processing TopCV listing job %s/%s | html_preview=%s", idx, len(jobs), self._preview_html(job, 350))
+                logger.info(f"Processing job {idx}/{len(jobs)}")
 
-                title, company, logo, job_url, location, salary, exp, raw_job_url = self._extract_job_info(job)
+                title, company, logo, job_url, location, salary, exp = self._extract_job_info(job)
                 data["title"] = title
                 data["company"] = company
                 data["logo"] = logo
@@ -311,139 +270,80 @@ class TopCVScraper:
                 data["location"] = location
                 data["salary"] = salary
                 data["experience"] = exp
-                logger.info(
-                    "Parsed TopCV listing fields | job=%s/%s title=%r company=%r raw_url=%r normalized_url=%r location=%r salary=%r exp=%r logo=%s",
-                    idx,
-                    len(jobs),
-                    title,
-                    company,
-                    raw_job_url,
-                    job_url,
-                    location,
-                    salary,
-                    exp,
-                    bool(logo),
-                )
-
-                if not job_url:
-                    logger.warning(
-                        "Skipping TopCV job detail because URL is missing | job=%s/%s title=%r company=%r html_preview=%s",
-                        idx,
-                        len(jobs),
-                        title,
-                        company,
-                        self._preview_html(job),
-                    )
-                    continue
 
                 # Create new driver for each job detail to avoid bot detection
                 if job_url:
                     try:
-                        logger.info("Loading TopCV detail page | job=%s/%s url=%s", idx, len(jobs), job_url)
-                        detail_driver.get(job_url)
-                        try:
-                            WebDriverWait(detail_driver, 30).until(
-                                lambda d: d.execute_script("return document.body.innerText.length") > 250
-                            )
-                        except TimeoutException:
-                            logger.warning(
-                                "Timeout waiting for TopCV job details | job=%s/%s title=%r url=%s",
-                                idx,
-                                len(jobs),
-                                title,
-                                job_url,
-                                exc_info=True,
-                            )
-                            # detail_driver.quit()
-                            time.sleep(0.5 + random.uniform(0.5, 1.5))
-                            continue
-
-                        detail_page_source = detail_driver.page_source
-                        job_soup = BeautifulSoup(detail_page_source, "html.parser")
-                        is_detail_challenge = self._is_challenge_page(job_soup)
-                        logger.info(
-                            "Loaded TopCV detail page | job=%s/%s url=%s title=%r body_text_len=%s html_len=%s challenge=%s",
-                            idx,
-                            len(jobs),
-                            job_url,
-                            job_soup.title.get_text(strip=True) if job_soup.title else None,
-                            len(job_soup.get_text(" ", strip=True)),
-                            len(detail_page_source),
-                            is_detail_challenge,
-                        )
-
-                        job_cat_div = job_soup.find("div", string=lambda x: x and "Chuyên môn:" in x)
-                        data["job_cat"] = (
-                            ", ".join([job_cat.text.strip() for job_cat in job_cat_div.find_next("div").find_all("a")])
-                            if job_cat_div
-                            else None
-                        )
-
-                        if "topcv.vn/brand/" in job_url.strip():
-                            detail_type = "brand"
-                            descriptions, requirements, edu, type_of_work = self._parse_brand_job(job_soup)
-                        elif "topcv.vn/viec-lam/" in job_url.strip():
-                            detail_type = "standard"
-                            descriptions, requirements, edu, type_of_work = self._parse_job_detail(job_soup)
+                        job_soup = self._load_detail_soup(detail_driver, job_url, idx, len(jobs))
+                        
+                        is_challenge = False
+                        if job_soup is None or self._is_challenge_page(job_soup):
+                            is_challenge = True
                         else:
-                            detail_type = "unknown"
-                            descriptions = requirements = edu = type_of_work = None
+                            self._apply_detail_data(data, job_soup)
+                            if not data["descriptions"] or not data["requirements"]:
+                                is_challenge = True
+
+                        if is_challenge:
                             logger.warning(
-                                "Unknown TopCV detail URL pattern | job=%s/%s title=%r url=%s",
+                                "Challenge, timeout, or incomplete data detected for job %s/%s | url=%s. Recreating webdriver to retry and continue...",
                                 idx,
                                 len(jobs),
-                                title,
                                 job_url,
                             )
+                            try:
+                                detail_driver.quit()
+                            except Exception:
+                                pass
+                            
+                            detail_driver = self._init_driver()
+                            time.sleep(1.0 + random.uniform(0.5, 1.5))
+                            
+                            job_soup = self._load_detail_soup(detail_driver, job_url, idx, len(jobs))
+                            if job_soup is not None and not self._is_challenge_page(job_soup):
+                                self._apply_detail_data(data, job_soup)
+                                if not data["descriptions"] or not data["requirements"]:
+                                    logger.warning(
+                                        "Job %s/%s details still empty after retrying with new webdriver. Skipping job.",
+                                        idx,
+                                        len(jobs),
+                                    )
+                            else:
+                                logger.warning(
+                                    "New webdriver also hit challenge or failed to load for job %s/%s. Skipping job.",
+                                    idx,
+                                    len(jobs),
+                                )
+                                continue
 
-                        data["descriptions"] = descriptions
-                        data["requirements"] = requirements
-                        data["education"] = edu
-                        data["type_of_work"] = type_of_work
                         logger.info(
-                            "TopCV detail fields after extraction | job=%s/%s type=%s title=%r job_cat=%r descriptions_len=%s requirements_len=%s edu=%r type_of_work=%r",
+                            "Job processing state | job=%s/%s title=%r url=%s descriptions_len=%s requirements_len=%s",
                             idx,
                             len(jobs),
-                            detail_type,
-                            title,
-                            data["job_cat"],
-                            len(descriptions) if descriptions else 0,
-                            len(requirements) if requirements else 0,
-                            edu,
-                            type_of_work,
+                            data["title"],
+                            data["url"],
+                            len(data["descriptions"]) if data["descriptions"] else 0,
+                            len(data["requirements"]) if data["requirements"] else 0,
                         )
                     finally:
-                        detail_driver.delete_all_cookies()
-                        detail_driver.execute_cdp_cmd("Network.clearBrowserCookies", {})
-                        detail_driver.execute_cdp_cmd("Network.clearBrowserCache", {})
+                        try:
+                            detail_driver.delete_all_cookies()
+                            detail_driver.execute_cdp_cmd("Network.clearBrowserCookies", {})
+                            detail_driver.execute_cdp_cmd("Network.clearBrowserCache", {})
+                        except Exception as e:
+                            logger.warning(f"Failed to clear cookies/cache: {e}")
                         time.sleep(0.5 + random.uniform(0.5, 1.5))
             except Exception as e:
-                logger.error(
-                    "Error processing TopCV job, skipping | job=%s/%s title=%r company=%r url=%r error=%s html_preview=%s",
-                    idx,
-                    len(jobs),
-                    data.get("title"),
-                    data.get("company"),
-                    data.get("url"),
-                    e,
-                    self._preview_html(job),
-                    exc_info=True,
-                )
+                logger.error(f"Error processing job {idx}/{len(jobs)}, skipping... {e}", exc_info=True)
 
             if data["url"] and data["requirements"] and data["descriptions"] and data["experience"]:
                 job_data.append(data)
-                self._log_job_state(logging.INFO, "TopCV job appended", idx, len(jobs), data)
+                logger.info(f"Job appended successfully: {data['title']}")
             else:
-                missing_fields = [
-                    field
-                    for field in ("url", "requirements", "descriptions", "experience")
-                    if not data.get(field)
-                ]
+                missing = [k for k in ["url", "requirements", "descriptions", "experience"] if not data.get(k)]
                 logger.warning(
-                    "TopCV job not appended because required fields are missing | job=%s/%s missing=%s title=%r company=%r url=%r",
-                    idx,
-                    len(jobs),
-                    ", ".join(missing_fields),
+                    "Job NOT appended because of missing fields: %s | title=%r company=%r url=%r",
+                    missing,
                     data.get("title"),
                     data.get("company"),
                     data.get("url"),
@@ -451,11 +351,5 @@ class TopCVScraper:
 
         detail_driver.quit()
 
-        logger.info(
-            "TopCV scraping completed | source_url=%s listed_jobs=%s scraped_jobs=%s skipped_jobs=%s",
-            url,
-            len(jobs),
-            len(job_data),
-            len(jobs) - len(job_data),
-        )
+        logger.info(f"Scraping completed. Total jobs scraped: {len(job_data)}")
         return job_data

@@ -1,0 +1,17 @@
+services:
+  bot:
+    build:
+      context: ../..
+      dockerfile: apps/bot/Dockerfile
+    container_name: jobflow-discord-bot
+    restart: unless-stopped
+    environment:
+      DISCORD_BOT_ENABLED: ${DISCORD_BOT_ENABLED:-false}
+      DISCORD_TOKEN: ${DISCORD_TOKEN:-}
+      DISCORD_GUILD_ID: ${DISCORD_GUILD_ID:-}
+      API_BASE_URL: ${API_BASE_URL:-http://api:8100}
+      API_TIMEOUT_SECONDS: ${API_TIMEOUT_SECONDS:-45}
+      JOBS_DEFAULT_TOP_K: ${JOBS_DEFAULT_TOP_K:-5}
+    depends_on:
+      api:
+        condition: service_healthy

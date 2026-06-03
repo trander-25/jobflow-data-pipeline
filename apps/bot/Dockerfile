@@ -1,16 +1,13 @@
-FROM python:3.11-slim
+FROM python:3.12-slim
 
-WORKDIR /bot
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
 
-RUN apt-get update && apt-get install -y \
-    gcc \
-    && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY apps/bot/requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
 
-COPY . .
+COPY apps/bot /app/bot
 
-EXPOSE 8001
-
-CMD ["python", "bot.py", "--port", "8001"]
+CMD ["python", "-m", "bot.main"]
