@@ -38,7 +38,7 @@ class Settings:
     mongodb_chat_collection: str = os.getenv("MONGODB_CHAT_COLLECTION", "chat_messages")
 
     google_api_key: str = os.getenv("GOOGLE_API_KEY", "")
-    google_genai_model: str = os.getenv("GOOGLE_GENAI_MODEL", "gemma-3-27b-it")
+    google_genai_model: str = os.getenv("GOOGLE_GENAI_MODEL", "gemini-2.0-flash")
     google_genai_temperature: float = _float_env("GOOGLE_GENAI_TEMPERATURE", 0.2)
 
     rag_default_top_k: int = _int_env("RAG_DEFAULT_TOP_K", 5)

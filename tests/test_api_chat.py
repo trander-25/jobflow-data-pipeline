@@ -39,6 +39,11 @@ class FakeLlm:
         return "Có 1 job Data Engineer phù hợp: https://example.com/job-1"
 
 
+class BrokenLlm:
+    def generate(self, prompt):
+        raise RuntimeError("model not found")
+
+
 def test_chat_endpoint_uses_retrieval_llm_and_history():
     history = FakeHistoryStore()
     app.state.settings = Settings(
@@ -56,4 +61,26 @@ def test_chat_endpoint_uses_retrieval_llm_and_history():
     assert response.answer.startswith("Có 1 job Data Engineer")
     assert response.sources[0].url == "https://example.com/job-1"
     assert history.added[0] == ("discord-user", "user", "Tìm job Data Engineer")
+    assert history.added[1][1] == "assistant"
+
+
+def test_chat_endpoint_falls_back_when_llm_fails():
+    history = FakeHistoryStore()
+    app.state.settings = Settings(
+        google_genai_model="bad-model",
+        rag_default_top_k=3,
+        rag_max_top_k=5,
+        chat_history_limit=6,
+        rate_limit_enabled=False,
+    )
+    app.state.job_store = FakeJobStore()
+    app.state.history_store = history
+    app.state.llm = BrokenLlm()
+
+    response = chat(ChatRequest(user_id="discord-user", message="Tìm job Data Engineer", top_k=3))
+
+    assert response.usage_context["llm_used"] is False
+    assert "bad-model" in response.usage_context["llm_error"]
+    assert "model not found" in response.usage_context["llm_error"]
+    assert response.sources[0].url == "https://example.com/job-1"
     assert history.added[1][1] == "assistant"

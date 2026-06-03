@@ -233,7 +233,7 @@ Before using `/ask`, make sure the embedding DAG has populated Chroma and set th
 
 ```bash
 GOOGLE_API_KEY="your_google_ai_api_key"
-GOOGLE_GENAI_MODEL="gemma-3-27b-it"
+GOOGLE_GENAI_MODEL="gemini-2.0-flash"
 DISCORD_TOKEN="your_discord_token"
 DISCORD_GUILD_ID="optional_test_guild_id"
 ```
@@ -309,7 +309,7 @@ Important variables by subsystem:
 | `API_BASE_URL` | `http://api:8100` | `apps/bot` | Base URL the bot uses to call the API inside Docker. For local bot dev, use `http://localhost:8100`. |
 | `API_TIMEOUT_SECONDS` | `45` | `apps/bot` | HTTP timeout for bot-to-API calls. |
 | `GOOGLE_API_KEY` | empty | `apps/api` | Google AI API key. Required by `POST /chat`. |
-| `GOOGLE_GENAI_MODEL` | `gemma-3-27b-it` | `apps/api` | Model id used by `google-genai`. |
+| `GOOGLE_GENAI_MODEL` | `gemini-2.0-flash` | `apps/api` | Model id used by `google-genai`. |
 | `GOOGLE_GENAI_TEMPERATURE` | `0.2` | `apps/api` | LLM generation temperature. |
 | `RAG_DEFAULT_TOP_K` | `5` | `apps/api` | Default Chroma result count when request `top_k` is omitted. |
 | `RAG_MAX_TOP_K` | `10` | `apps/api` | Maximum retrieval count enforced by the API. |
@@ -395,7 +395,7 @@ PostgreSQL SQL init files read `DB_JOB` and `DB_TRINO` from the container enviro
 | --- | --- |
 | `make help` | Show available commands. |
 | `make run` | Set up `.env`, build images, and start all services. |
-| `make docker-up` | Start services without rebuilding. |
+| `make docker-up` | Start services without rebuilding. The API and Discord bot mount local code and reload after saving. |
 | `make docker-up-build` | Build images and start services. |
 | `make docker-ps` | Show running service status. |
 | `make docker-logs` | Follow logs from all services. |

@@ -5,6 +5,10 @@ import httpx
 from bot.config import BotSettings
 
 
+class JobFlowApiError(Exception):
+    pass
+
+
 class JobFlowApiClient:
     def __init__(self, settings: BotSettings):
         self.base_url = settings.api_base_url.rstrip("/")
@@ -16,7 +20,7 @@ class JobFlowApiClient:
             payload["top_k"] = top_k
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             response = await client.post(f"{self.base_url}/chat", json=payload)
-            response.raise_for_status()
+            self._raise_for_status(response)
             return response.json()
 
     async def search_jobs(self, query: str, user_id: str | None = None, top_k: int | None = None) -> dict[str, Any]:
@@ -27,11 +31,32 @@ class JobFlowApiClient:
             payload["top_k"] = top_k
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             response = await client.post(f"{self.base_url}/jobs/search", json=payload)
-            response.raise_for_status()
+            self._raise_for_status(response)
             return response.json()
 
     async def reset_history(self, user_id: str) -> dict[str, Any]:
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             response = await client.delete(f"{self.base_url}/chat/history/{user_id}")
-            response.raise_for_status()
+            self._raise_for_status(response)
             return response.json()
+
+    def _raise_for_status(self, response: httpx.Response) -> None:
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            detail = self._error_detail(response)
+            raise JobFlowApiError(f"{response.status_code} {response.reason_phrase}: {detail}") from exc
+
+    @staticmethod
+    def _error_detail(response: httpx.Response) -> str:
+        try:
+            payload = response.json()
+        except ValueError:
+            return response.text.strip() or "No response body"
+
+        detail = payload.get("detail") if isinstance(payload, dict) else None
+        if isinstance(detail, dict):
+            return str(detail.get("message") or detail)
+        if detail:
+            return str(detail)
+        return str(payload)

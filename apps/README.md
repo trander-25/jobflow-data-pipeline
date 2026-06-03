@@ -61,7 +61,7 @@ The app-level variables are defined in [`.env.example`](../.env.example). The mo
 | `API_HOST_PORT` | API Docker service | Host port exposed for FastAPI. Defaults to `8100`. |
 | `API_BASE_URL` | Discord bot | Base URL used by the bot to call the API. In Docker it should be `http://api:8100`. |
 | `GOOGLE_API_KEY` | API | Google AI API key used by `google-genai`. Required for `/chat`. |
-| `GOOGLE_GENAI_MODEL` | API | Model id used for answer generation. Defaults to `gemma-3-27b-it`. |
+| `GOOGLE_GENAI_MODEL` | API | Model id used for answer generation. Defaults to `gemini-2.0-flash`. |
 | `RATE_LIMIT_ENABLED` | API | Enables per-user API rate limiting. |
 | `RATE_LIMIT_REQUESTS` / `RATE_LIMIT_WINDOW_SECONDS` | API | Maximum requests allowed per key inside the configured time window. |
 | `RATE_LIMIT_SEARCH_ENABLED` | API | Applies the same limiter to `/jobs/search`. |

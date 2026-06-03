@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timezone
 
 from fastapi import FastAPI, HTTPException, Request
@@ -11,6 +12,7 @@ from api.services.prompt import build_prompt
 from api.services.rate_limiter import InMemoryRateLimiter
 
 app = FastAPI(title="JobFlow Chatbot API", version="1.0.0")
+logger = logging.getLogger(__name__)
 
 
 def _settings():
@@ -45,6 +47,13 @@ def _client_key(request: Request) -> str:
     if request.client and request.client.host:
         return request.client.host
     return "unknown-client"
+
+
+def _llm_fallback_answer() -> str:
+    return (
+        "JobFlow AI hiện chưa thể tạo câu trả lời vì dịch vụ GenAI đang không sẵn sàng. "
+        "Mình vẫn gửi các job liên quan tìm được từ dữ liệu JobFlow bên dưới."
+    )
 
 
 @app.on_event("startup")
@@ -105,10 +114,20 @@ def chat(request: ChatRequest) -> ChatResponse:
     jobs = app.state.job_store.search(request.message, top_k)
     prompt = build_prompt(request.message, jobs, history)
 
+    llm_error = None
     try:
         answer = app.state.llm.generate(prompt)
+        llm_used = True
     except ValueError as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        logger.exception("LLM configuration failed")
+        answer = _llm_fallback_answer()
+        llm_used = False
+        llm_error = str(exc)
+    except Exception as exc:
+        logger.exception("LLM generation failed")
+        answer = _llm_fallback_answer()
+        llm_used = False
+        llm_error = f"Google GenAI request failed for model '{_settings().google_genai_model}': {exc}"
 
     app.state.history_store.add_message(request.user_id, "user", request.message)
     app.state.history_store.add_message(request.user_id, "assistant", answer)
@@ -122,7 +141,8 @@ def chat(request: ChatRequest) -> ChatResponse:
             "retrieved_count": len(jobs),
             "history_messages_used": len(history),
             "llm_model": _settings().google_genai_model,
-            "llm_used": True,
+            "llm_used": llm_used,
+            "llm_error": llm_error,
             **rate_context,
         },
     )

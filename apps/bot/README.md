@@ -104,6 +104,7 @@ docker compose up -d bot
 ```
 
 The bot waits for the `api` service healthcheck before starting.
+In Docker development, `apps/bot` is mounted into the container and `bot.dev_watch` restarts the bot process when Python files change, so code edits are picked up after saving without rebuilding the image.
 
 ## Discord Message Formatting
 

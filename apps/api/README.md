@@ -91,7 +91,7 @@ Response fields:
 | `retrieved_jobs` | Full retrieved jobs for UI/debug display. |
 | `usage_context` | `top_k`, retrieved count, history count, model id, and `llm_used=true`. |
 
-If `GOOGLE_API_KEY` is not configured, this endpoint returns HTTP `500` with a clear error message.
+If `GOOGLE_API_KEY` is not configured, or if Google GenAI rejects the configured model/request, this endpoint returns a fallback answer with `usage_context.llm_used=false` and `usage_context.llm_error` so Discord users still receive retrieved job sources instead of a bot error.
 
 ### `DELETE /chat/history/{user_id}`
 
@@ -121,7 +121,7 @@ Response:
 | `MONGODB_AUTH_SOURCE` | `admin` | MongoDB auth database. |
 | `MONGODB_CHAT_COLLECTION` | `chat_messages` | Collection used by the history store. |
 | `GOOGLE_API_KEY` | empty | Google AI API key. Required for `/chat`. |
-| `GOOGLE_GENAI_MODEL` | `gemma-3-27b-it` | Model id passed to `google-genai`. |
+| `GOOGLE_GENAI_MODEL` | `gemini-2.0-flash` | Model id passed to `google-genai`. |
 | `GOOGLE_GENAI_TEMPERATURE` | `0.2` | Generation temperature. |
 | `RAG_DEFAULT_TOP_K` | `5` | Default retrieval count when `top_k` is omitted. |
 | `RAG_MAX_TOP_K` | `10` | Maximum retrieval count accepted by the API service. |
@@ -167,3 +167,4 @@ docker compose up -d api
 ```
 
 The API container waits for healthy `chroma` and `mongodb` services before starting.
+In Docker development, `apps/api` is mounted into the container and Uvicorn runs with `--reload`, so Python code changes are picked up after saving without rebuilding the image.

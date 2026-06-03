@@ -5,6 +5,18 @@ services:
       dockerfile: apps/api/Dockerfile
     container_name: jobflow-api
     restart: unless-stopped
+    command:
+      [
+        "uvicorn",
+        "api.main:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8100",
+        "--reload",
+        "--reload-dir",
+        "/app/api",
+      ]
     environment:
       CHROMA_HOST: ${CHROMA_HOST:-chroma}
       CHROMA_PORT: ${CHROMA_PORT:-8000}
@@ -17,7 +29,7 @@ services:
       MONGODB_AUTH_SOURCE: ${MONGODB_AUTH_SOURCE:-admin}
       MONGODB_CHAT_COLLECTION: ${MONGODB_CHAT_COLLECTION:-chat_messages}
       GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
-      GOOGLE_GENAI_MODEL: ${GOOGLE_GENAI_MODEL:-gemma-3-27b-it}
+      GOOGLE_GENAI_MODEL: ${GOOGLE_GENAI_MODEL:-gemini-2.0-flash}
       GOOGLE_GENAI_TEMPERATURE: ${GOOGLE_GENAI_TEMPERATURE:-0.2}
       RAG_DEFAULT_TOP_K: ${RAG_DEFAULT_TOP_K:-5}
       RAG_MAX_TOP_K: ${RAG_MAX_TOP_K:-10}
@@ -28,6 +40,8 @@ services:
       RATE_LIMIT_SEARCH_ENABLED: ${RATE_LIMIT_SEARCH_ENABLED:-true}
     ports:
       - "${API_HOST_PORT:-8100}:8100"
+    volumes:
+      - .:/app/api
     depends_on:
       chroma:
         condition: service_healthy
