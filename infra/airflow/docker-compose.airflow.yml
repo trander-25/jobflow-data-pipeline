@@ -1,0 +1,136 @@
+x-airflow-common: &airflow-common
+  build:
+    context: ../..
+    dockerfile: infra/airflow/Dockerfile
+  pull_policy: never
+  image: job_warehouse_discord:latest
+  restart: always
+  environment: &airflow-common-env
+    AIRFLOW_HOME: /opt/airflow
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${DB_USER:-user}:${DB_PASSWORD:-password}@${DB_HOST:-postgresql_db}:${DB_PORT:-5432}/${DB_AIRFLOW:-airflow_db}
+    AIRFLOW__CORE__FERNET_KEY: ""
+    AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_WEBSERVER_SECRET_KEY:-random_secret_key}
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
+    AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    AIRFLOW_CONN_TRINO_DEFAULT: trino://trino@trino:8080/default
+    TRINO_CONN_ID: ${TRINO_CONN_ID:-trino_default}
+    DBT_TARGET: airflow
+    DB_HOST: ${DB_HOST:-postgresql_db}
+    DB_PORT: ${DB_PORT:-5432}
+    DB_USER: ${DB_USER:-user}
+    DB_PASSWORD: ${DB_PASSWORD:-password}
+    DB_AIRFLOW: ${DB_AIRFLOW:-airflow_db}
+    DB_JOB: ${DB_JOB:-job_db}
+    DB_TRINO: ${DB_TRINO:-catalog_wh}
+    DB_NAME: ${DB_AIRFLOW:-airflow_db}
+    MINIO_USER: ${MINIO_USER:-user}
+    MINIO_PASSWORD: ${MINIO_PASSWORD:-password}
+    MINIO_WAREHOUSE_BUCKET: ${MINIO_WAREHOUSE_BUCKET:-warehouse}
+    MINIO_CRAWLED_DATA_BUCKET: ${MINIO_CRAWLED_DATA_BUCKET:-crawled-data}
+    CHROMA_HOST: ${CHROMA_HOST:-chroma}
+    CHROMA_PORT: ${CHROMA_PORT:-8000}
+    REDIS_HOST: ${REDIS_HOST:-redis}
+    REDIS_PORT: ${REDIS_PORT:-6379}
+    MONGODB_HOST: ${MONGODB_HOST:-mongodb}
+    MONGODB_PORT: ${MONGODB_PORT:-27017}
+    MONGODB_DB: ${MONGODB_DB:-jobflow}
+    CHROMA_COLLECTION_NAME: ${CHROMA_COLLECTION_NAME:-job_embeddings}
+    CHROMA_BATCH_SIZE: ${CHROMA_BATCH_SIZE:-100}
+    DISCORD_TOKEN: ${DISCORD_TOKEN:-}
+    DISCORD_CHANNEL_ID: ${DISCORD_CHANNEL_ID:-}
+    EMAIL: ${EMAIL:-no_need}
+    EMAIL_PASSWORD: ${EMAIL_PASSWORD:-no_need}
+  volumes:
+    - ./dags:/opt/airflow/dags
+    - ./config/airflow.cfg:/opt/airflow/config/airflow.cfg
+    - ./scripts:/opt/airflow/scripts
+    - ./tasks:/opt/airflow/tasks
+    - ./dbt_jobflow:/opt/airflow/dbt_jobflow
+    - ../../.env:/opt/airflow/.env
+  depends_on: &airflow-common-depends-on
+    postgresql_db:
+      condition: service_healthy
+
+services:
+  airflow-init:
+    <<: *airflow-common
+    container_name: airflow-init
+    depends_on:
+      <<: *airflow-common-depends-on
+    environment:
+      <<: *airflow-common-env
+    command: |
+      bash -c '
+      set -e
+
+      echo "Waiting for database..."
+
+      export PGPASSWORD="$DB_PASSWORD"
+
+      until pg_isready \
+        -h "$DB_HOST" \
+        -p "$DB_PORT" \
+        -U "$DB_USER" \
+        -d "$DB_AIRFLOW"; do
+          echo "Postgres not ready yet..."
+          sleep 5
+      done
+
+      echo "Postgres is ready."
+
+      airflow db migrate
+
+      echo "Checking if admin user exists..."
+
+      if ! airflow users get "$DB_USER" >/dev/null 2>&1; then
+        echo "Creating admin user..."
+        airflow users create \
+          --username "$DB_USER" \
+          --firstname admin \
+          --lastname admin \
+          --role Admin \
+          --email admin@example.com \
+          --password "$DB_PASSWORD"
+      fi
+
+      echo "Airflow init completed."
+      '
+    restart: "no"
+
+  airflow-webserver:
+    <<: *airflow-common
+    container_name: airflow-webserver
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+    ports:
+      - "${AIRFLOW_WEBSERVER_PORT:-8080}:8080"
+    command: webserver
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 60s
+      timeout: 30s
+      retries: 5
+
+  airflow-scheduler:
+    <<: *airflow-common
+    container_name: airflow-scheduler
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+      airflow-webserver:
+        condition: service_healthy
+    command: scheduler
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'airflow jobs check --job-type SchedulerJob --hostname "$${HOSTNAME}"',
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s

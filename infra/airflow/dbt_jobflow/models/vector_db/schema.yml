@@ -1,0 +1,16 @@
+version: 2
+
+models:
+  - name: vector_db
+    description: "New job records prepared from gold models for Chroma vector database embedding."
+    columns:
+      - name: job_id
+        tests:
+          - not_null
+          - unique
+      - name: url
+        tests:
+          - not_null
+      - name: embedding_text
+        tests:
+          - not_null

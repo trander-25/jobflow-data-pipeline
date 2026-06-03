@@ -2,13 +2,14 @@
 .PHONY: pre-commit-install pre-commit-run
 .PHONY: docker-build docker-up docker-up-build docker-down docker-restart
 .PHONY: docker-logs docker-ps docker-init docker-shell-airflow
+.PHONY: docker-volume-init
 
 PYTHON ?= .venv/bin/python
 PIP ?= .venv/bin/pip
 PRE_COMMIT ?= .venv/bin/pre-commit
 PRE_COMMIT_HOME ?= .cache/pre-commit
 DOCKER_COMPOSE ?= docker compose
-CODE_PATHS := airflow/dags airflow/scripts airflow/tasks
+CODE_PATHS := infra/airflow/dags infra/airflow/scripts infra/airflow/tasks
 
 help:
 	@echo "Available commands:"
@@ -20,6 +21,7 @@ help:
 	@echo "  make docker-restart     Restart all services"
 	@echo "  make docker-logs        Follow logs from all services"
 	@echo "  make docker-ps          Show service status"
+	@echo "  make docker-volume-init Create persistent Docker volumes"
 	@echo "  make docker-init        Run setup, build, and start services"
 	@echo "  make install            Install Python dependencies into .venv"
 	@echo "  make format             Format Python code with Ruff"
@@ -30,17 +32,21 @@ help:
 	@echo "  make check              Run format-check, lint, and test"
 
 run: setup docker-up-build
-	@echo ""
-	@echo "JobFlow is starting."
-	@echo "Open these URLs after the containers are healthy:"
-	@echo "  Airflow:       http://localhost:8080"
-	@echo "  Trino:         http://localhost:8081"
-	@echo "  MinIO Console: http://localhost:9001"
-	@echo ""
-	@echo "Useful next commands:"
-	@echo "  make docker-ps"
-	@echo "  make docker-logs"
-	@echo "  make docker-down"
+	@set -a; \
+	if [ -f .env ]; then . ./.env; fi; \
+	set +a; \
+	echo ""; \
+	echo "JobFlow is starting."; \
+	echo "Open these URLs after the containers are healthy:"; \
+	echo "  Airflow:       http://localhost:$${AIRFLOW_WEBSERVER_PORT:-8080}"; \
+	echo "  Trino:         http://localhost:$${TRINO_HOST_PORT:-8081}"; \
+	echo "  MinIO Console: http://localhost:$${MINIO_CONSOLE_PORT:-9001}"; \
+	echo "  Chroma:        http://localhost:$${CHROMA_HOST_PORT:-8000}"; \
+	echo ""; \
+	echo "Useful next commands:"; \
+	echo "  make docker-ps"; \
+	echo "  make docker-logs"; \
+	echo "  make docker-down"
 
 setup:
 	@if [ ! -f .env ]; then \
@@ -79,10 +85,22 @@ check: format-check lint test
 docker-build:
 	$(DOCKER_COMPOSE) build
 
-docker-up:
+docker-volume-init:
+	@set -a; \
+	if [ -f .env ]; then . ./.env; fi; \
+	set +a; \
+	for volume in \
+		$${POSTGRES_VOLUME_NAME:-jobflow_postgres_data} \
+		$${MINIO_VOLUME_NAME:-jobflow_minio_data} \
+		$${CHROMA_VOLUME_NAME:-jobflow_chroma_data} \
+		$${MONGODB_VOLUME_NAME:-jobflow_mongodb_data}; do \
+		docker volume inspect $$volume >/dev/null 2>&1 || docker volume create $$volume >/dev/null; \
+	done
+
+docker-up: docker-volume-init
 	$(DOCKER_COMPOSE) up -d
 
-docker-up-build:
+docker-up-build: docker-volume-init
 	$(DOCKER_COMPOSE) up -d --build
 
 docker-down:

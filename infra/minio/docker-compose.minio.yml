@@ -1,0 +1,35 @@
+services:
+  minio:
+    image: minio/minio:${MINIO_VERSION:-RELEASE.2025-09-07T16-13-09Z-cpuv1}
+    container_name: minio
+    environment:
+      MINIO_ROOT_USER: ${MINIO_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD}
+    command: ["server", "/data", "--console-address", ":9001"]
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    restart: always
+    volumes:
+      - minio_data:/data
+
+  minio-init:
+    image: minio/mc:${MINIO_MC_VERSION:-RELEASE.2025-08-13T08-35-41Z-cpuv1}
+    container_name: minio-init
+    depends_on:
+      minio:
+        condition: service_started
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set minio http://minio:9000 ${MINIO_USER} ${MINIO_PASSWORD}; do
+        sleep 2;
+      done;
+      mc mb -p minio/${MINIO_WAREHOUSE_BUCKET:-warehouse} || true;
+      mc mb -p minio/${MINIO_CRAWLED_DATA_BUCKET:-crawled-data} || true;
+      echo 'MinIO initialization completed';
+      "
+    restart: "no"
+
+volumes:
+  minio_data:
+    name: ${MINIO_VOLUME_NAME:-jobflow_minio_data}
