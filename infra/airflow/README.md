@@ -1,46 +1,48 @@
 # Airflow Runtime
 
-`infra/airflow/` contains the orchestration layer for JobFlow. It builds the Airflow image, defines DAGs and task groups, runs crawlers, executes dbt models, posts job alerts, and embeds jobs into Chroma.
+`infra/airflow/` is the orchestration layer for JobFlow. It builds the Airflow image, defines DAGs, runs crawlers and validation, executes dbt, processes images, posts Discord job alerts, and writes job embeddings to Chroma.
 
 ## Folder Contents
 
 | Path | Purpose |
 | --- | --- |
 | `dags/` | Airflow DAG definitions. |
-| `tasks/` | Reusable Python task and task-group helpers used by DAGs. |
-| `scripts/` | Crawlers, validation helpers, formatting utilities, storage/database clients, and source config JSON. |
-| `dbt_jobflow/` | dbt project with bronze, silver, gold, reports, audit, and vector_db models. |
-| `config/airflow.cfg` | Airflow configuration mounted into the containers. |
-| `Dockerfile` | Airflow runtime image with Python dependencies and Chrome for Selenium crawlers. |
+| `tasks/` | Reusable Airflow task and task-group helpers. |
+| `scripts/crawl_scripts/` | TopCV and ITViec crawler implementations. |
+| `scripts/validation/` | Great Expectations validation entry points for crawled sources. |
+| `scripts/utils/` | Database, MinIO, embedding, formatting, image, and Discord helpers. |
+| `scripts/source_*.json` | Source configuration consumed by crawler tasks. |
+| `dbt_jobflow/` | dbt project for warehouse, report, audit, and vector-search models. |
+| `config/airflow.cfg` | Airflow config mounted into containers. |
+| `Dockerfile` | Airflow runtime image with Python dependencies and browser tooling for crawlers. |
 | `docker-compose.airflow.yml` | Airflow init, webserver, and scheduler services. |
 | `requirements.txt` | Python dependencies installed into the Airflow image. |
 
-## Important DAGs
+## DAGs
 
-| DAG | Purpose |
+| DAG file | Purpose |
 | --- | --- |
-| `master_dag.py` | End-to-end orchestration that ties crawl, transform, and embedding stages together. |
+| `master_dag.py` | End-to-end orchestration for crawl, processing, dbt, and embedding stages. |
 | `topcv_jobs.py` | TopCV crawl pipeline. |
 | `itviec_jobs.py` | ITViec crawl pipeline. |
 | `dbt_pipeline.py` | dbt transformation pipeline. |
-| `embed_vector_db.py` | Builds the `vector_db` model and embeds records into Chroma. |
-| `post_job_dag.py` | Posts unposted job alerts to Discord channels. |
-| `process_image_dag.py` | Processes company logo/image assets. |
+| `embed_vector_db.py` | Build the `vector_db` model and embed rows into Chroma. |
+| `post_job_dag.py` | Post unposted job alerts to Discord. |
+| `process_image_dag.py` | Process company logo/image assets. |
+| `test_dag.py` | Lightweight DAG used for Airflow sanity checks. |
 
 ## dbt Models
 
-The dbt project lives at `dbt_jobflow/`.
+The dbt project lives in `dbt_jobflow/`.
 
-| Layer | Path | Description |
+| Layer | Path | Purpose |
 | --- | --- | --- |
-| Bronze | `models/bronze` | Source-aligned staging models for crawled data. |
+| Bronze | `models/bronze` | Source-aligned staging models. |
 | Silver | `models/silver` | Cleaned and unified intermediate job models. |
-| Gold | `models/gold` | Fact and dimension models for analytics. |
-| Reports | `models/reports` | Business-ready report models. |
-| Audit | `models/audit` | Pipeline performance and ELT summary models. |
+| Gold | `models/gold` | Fact and dimension models. |
+| Reports | `models/reports` | Business-ready report tables for Superset. |
+| Audit | `models/audit` | ELT and task-performance summary models. |
 | Vector DB | `models/vector_db` | Job text and metadata prepared for Chroma embedding. |
-
-The `vector_db` model produces `embedding_text` plus job metadata such as title, company, location, category, salary, source platform, and URL.
 
 ## Embedding Flow
 
@@ -57,70 +59,34 @@ scripts.utils.embed_data_vector_db.embed_and_save_data
 Chroma collection: CHROMA_COLLECTION_NAME
 ```
 
-The Chroma embedding writer uses:
+The API queries the same Chroma collection for `/jobs/search` and `/chat`.
 
-- `chromadb.HttpClient`
-- `CHROMA_HOST`
-- `CHROMA_PORT`
-- `CHROMA_COLLECTION_NAME`
-- `CHROMA_BATCH_SIZE`
-- Chroma's `DefaultEmbeddingFunction`
+## Running
 
-The chatbot API uses the same collection and embedding function for query-time retrieval.
-
-## Environment Variables
-
-| Variable | Description |
-| --- | --- |
-| `AIRFLOW_WEBSERVER_PORT` | Host port for the Airflow web UI. |
-| `AIRFLOW_WEBSERVER_SECRET_KEY` | Airflow webserver secret key. |
-| `AIRFLOW_CONN_TRINO_DEFAULT` | Trino connection URI injected by Compose. |
-| `TRINO_CONN_ID` | Connection id used by tasks that query Trino. |
-| `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD` | PostgreSQL connection details. |
-| `DB_AIRFLOW` | Airflow metadata database. |
-| `DB_JOB` | Job data database. |
-| `DB_TRINO` | Iceberg catalog metadata database. |
-| `MINIO_USER`, `MINIO_PASSWORD` | MinIO credentials. |
-| `MINIO_WAREHOUSE_BUCKET` | Warehouse bucket used by Trino/Iceberg. |
-| `MINIO_CRAWLED_DATA_BUCKET` | Bucket for crawled data/object assets. |
-| `CHROMA_HOST`, `CHROMA_PORT` | Chroma service connection details. |
-| `CHROMA_COLLECTION_NAME`, `CHROMA_BATCH_SIZE` | Embedding target collection and insert batch size. |
-| `MONGODB_HOST`, `MONGODB_PORT`, `MONGODB_DB` | MongoDB settings exposed for future/chatbot-related tasks. |
-| `REDIS_HOST`, `REDIS_PORT` | Redis connection settings. |
-| `DISCORD_TOKEN`, `DISCORD_CHANNEL_ID` | Discord settings for job alert posting tasks. |
-| `EMAIL`, `EMAIL_PASSWORD` | Placeholder email settings used by the current env template. |
-
-## Running and Debugging
-
-Start the full stack:
+Start the full stack from the project root:
 
 ```bash
 make run
 ```
 
-Open Airflow:
+Open Airflow at http://localhost:8080, then trigger `master_job_elt` for the main workflow.
 
-```text
-http://localhost:8080
-```
-
-Shell into the webserver container:
+Useful debugging commands:
 
 ```bash
 make docker-shell-airflow
-```
-
-Follow logs:
-
-```bash
 docker compose logs -f airflow-scheduler
 docker compose logs -f airflow-webserver
 ```
 
+## Configuration
+
+Use the root [`.env.example`](../../.env.example) as the source of truth. Airflow mainly depends on `AIRFLOW_*`, `DB_*`, `MINIO_*`, `TRINO_CONN_ID`, `CHROMA_*`, and optional Discord posting variables.
+
 ## Tests
 
-Airflow helper tests live in `scripts/tests/` and are included by the root pytest config.
+Airflow-related tests are under [`tests/airflow`](../../tests/airflow/).
 
 ```bash
-.venv/bin/python -m pytest infra/airflow/scripts/tests
+.venv/bin/python -m pytest tests/airflow
 ```

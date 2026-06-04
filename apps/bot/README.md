@@ -1,8 +1,8 @@
 # JobFlow Discord Bot
 
-`apps/bot/` contains the Discord slash-command bot. It is intentionally thin: command handlers collect user input, call the FastAPI backend, and format responses for Discord.
+`apps/bot/` contains the Discord slash-command client. The bot stays intentionally thin: it receives Discord interactions, calls [`apps/api`](../api/), and formats the API response for Discord.
 
-The bot does not talk directly to Chroma, MongoDB, or Google GenAI. Those responsibilities belong to [`apps/api`](../api/).
+It does not talk directly to Chroma, MongoDB, Redis, or Google GenAI.
 
 ## Folder Contents
 
@@ -10,66 +10,24 @@ The bot does not talk directly to Chroma, MongoDB, or Google GenAI. Those respon
 | --- | --- |
 | `main.py` | Discord client, slash-command registration, and command handlers. |
 | `config.py` | Environment-backed bot settings. |
-| `api_client.py` | Async HTTP client for `apps/api`. |
-| `formatters.py` | Discord-safe response formatting and message splitting. |
-| `Dockerfile` | Container image for the bot service. |
+| `api_client.py` | Async HTTP client for the FastAPI backend. |
+| `formatters.py` | Discord-safe job and answer formatting plus message splitting. |
+| `dev_watch.py` | Local/container file watcher used for bot reloads in development. |
+| `Dockerfile` | Bot container image. |
 | `docker-compose.bot.yml` | Compose service included by the root compose file. |
-| `requirements.txt` | Minimal bot runtime dependencies. |
+| `requirements.txt` | Bot runtime dependencies. |
 
-## Slash Commands
+## Commands
 
-### `/ask question`
-
-Calls `POST /chat` on the FastAPI backend.
-
-Use this for natural-language questions such as:
-
-```text
-/ask Có job backend Python remote lương trên 30 triệu không?
-```
-
-Behavior:
-
-- Uses the Discord user id as `user_id`.
-- Lets the API retrieve relevant jobs from Chroma.
-- Lets the API use MongoDB per-user chat history.
-- Returns the generated answer and compact source links.
-
-### `/jobs query`
-
-Calls `POST /jobs/search` on the FastAPI backend.
-
-Use this when the user wants search results without an AI-generated explanation:
-
-```text
-/jobs data engineer Ho Chi Minh
-```
-
-Behavior:
-
-- Sends `query` to the API. The API infers how many jobs to return from the query text, defaulting to at most 5.
-- Formats returned jobs with title, company, location, salary, and URL.
-
-### `/reset`
-
-Calls `DELETE /chat/history/{discord_user_id}` on the FastAPI backend.
-
-Behavior:
-
-- Deletes the current Discord user's stored chat history.
-- Replies ephemerally with the number of deleted messages.
-
-## Environment Variables
-
-| Variable | Default | Description |
+| Command | API endpoint | Purpose |
 | --- | --- | --- |
-| `DISCORD_BOT_ENABLED` | `false` | Enables the Discord login loop. Keep false until a real token is configured. |
-| `DISCORD_TOKEN` | empty | Discord bot token. Required to start the bot. |
-| `DISCORD_GUILD_ID` | empty | Optional guild id. When set, slash commands sync to that guild for faster development. |
-| `API_BASE_URL` | `http://localhost:8100` | FastAPI base URL. Docker default is `http://api:8100`. |
-| `API_TIMEOUT_SECONDS` | `120` | HTTP timeout for API calls. |
+| `/ask question` | `POST /chat` | Ask a natural-language job question and receive a grounded answer with sources. |
+| `/jobs query` | `POST /jobs/search` | Search matching jobs without an AI-written explanation. |
+| `/reset` | `DELETE /chat/history/{user_id}` | Clear the current Discord user's stored chat history. |
 
-## Running Locally
+Long responses are split under Discord's message limit by `formatters.py`.
+
+## Running
 
 From the project root:
 
@@ -77,34 +35,22 @@ From the project root:
 make bot-dev
 ```
 
-This runs:
-
-```bash
-PYTHONPATH=apps .venv/bin/python -m bot.main
-```
-
-For local development, set:
-
-```bash
-DISCORD_BOT_ENABLED="true"
-DISCORD_TOKEN="your_discord_token"
-DISCORD_GUILD_ID="your_test_guild_id"
-API_BASE_URL="http://localhost:8100"
-```
-
-`DISCORD_GUILD_ID` is optional, but recommended while developing because guild command sync is much faster than global command sync.
-
-## Docker
-
-The root Compose file includes this service through `apps/bot/docker-compose.bot.yml`.
+Docker:
 
 ```bash
 docker compose up -d bot
 ```
 
-The bot waits for the `api` service healthcheck before starting.
-In Docker development, `apps/bot` is mounted into the container and `bot.dev_watch` restarts the bot process when Python files change, so code edits are picked up after saving without rebuilding the image.
+The Docker service waits for the API healthcheck before starting.
 
-## Discord Message Formatting
+## Configuration
 
-Discord messages have a 2000-character limit. `formatters.py` uses a safe limit of 1900 characters and splits long API responses across multiple follow-up messages.
+Use the root [`.env.example`](../../.env.example) as the source of truth. For the bot, the key settings are:
+
+| Variable | Purpose |
+| --- | --- |
+| `DISCORD_BOT_ENABLED` | Must be `true` for the login loop to start. |
+| `DISCORD_TOKEN` | Discord bot token. |
+| `DISCORD_GUILD_ID` | Optional guild id for faster command sync during development. |
+| `API_BASE_URL` | API base URL. Use `http://api:8100` in Docker and `http://localhost:8100` for local dev. |
+| `API_TIMEOUT_SECONDS` | HTTP timeout for API calls. |

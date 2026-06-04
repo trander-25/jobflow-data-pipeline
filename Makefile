@@ -96,7 +96,8 @@ docker-volume-init:
 		$${POSTGRES_VOLUME_NAME:-jobflow_postgres_data} \
 		$${MINIO_VOLUME_NAME:-jobflow_minio_data} \
 		$${CHROMA_VOLUME_NAME:-jobflow_chroma_data} \
-		$${MONGODB_VOLUME_NAME:-jobflow_mongodb_data}; do \
+		$${MONGODB_VOLUME_NAME:-jobflow_mongodb_data} \
+		$${SUPERSET_VOLUME_NAME:-jobflow_superset_home}; do \
 		docker volume inspect $$volume >/dev/null 2>&1 || docker volume create $$volume >/dev/null; \
 	done
 

@@ -25,27 +25,29 @@ The project follows a lakehouse-style workflow:
 1. Crawl job data from sources such as **TopCV** and **ITViec**.
 2. Store operational data in **PostgreSQL** and object data in **MinIO**.
 3. Query warehouse tables through **Trino** with an **Iceberg** catalog.
-4. Transform data with **dbt** across bronze, silver, gold, reports, and audit layers.
+4. Transform data with **dbt** across bronze, silver, gold, reports, audit, and vector layers.
 5. Orchestrate everything with **Apache Airflow**.
-6. Keep optional chatbot/RAG infrastructure available through **MongoDB**, **Redis**, and **Chroma**.
+6. Explore analytics through **Superset**.
+7. Power optional chatbot/RAG flows with **Chroma**, **MongoDB**, **Redis**, **FastAPI**, and **Discord**.
 
 ---
 
 ## ✨ Features
 
-- 🕷️ Job crawlers built with Python, Selenium, and BeautifulSoup.
-- 🌬️ Airflow DAGs for ingestion, processing, image handling, and dbt workflows.
+- 🕷️ Job crawlers built with Python, Selenium, BeautifulSoup, and Requests.
+- 🌬️ Airflow DAGs for ingestion, validation, image handling, dbt workflows, embedding, and Discord posting.
 - 🧪 Data validation support with Great Expectations.
 - 🪣 MinIO buckets for warehouse and crawled data storage.
 - 🧊 Trino + Iceberg warehouse schemas for analytical querying.
-- 🧱 dbt models organized by bronze, silver, gold, reports, and audit layers.
+- 🧱 dbt models organized by bronze, silver, gold, reports, audit, and vector layers.
+- 📊 Superset BI service for dashboards and report-table exploration.
 - 🐘 PostgreSQL bootstrap scripts for Airflow metadata, job data, and catalog metadata.
-- 🧠 Chroma vector database for local vector search and default embedding workflows.
+- 🧠 Chroma vector database for local vector search and embedding workflows.
 - 🤖 FastAPI RAG backend for job-search chatbot responses.
 - 🍃 MongoDB for chatbot conversation storage.
+- ⚡ Redis for shared API rate limiting.
 - 💬 Discord slash-command bot for interactive job Q&A.
-- ⚡ Redis for shared API rate limiting and cache or queue-oriented extensions.
-- 🔔 Discord integration for notification and posting workflows.
+- 🔔 Discord integration for job notification workflows.
 - 🐳 Docker Compose setup for local development.
 
 ---
@@ -66,27 +68,32 @@ Airflow Orchestration
     +--> MinIO             Object storage and warehouse files
     |
     +--> Chroma/MongoDB/Redis
-    |                       Optional chatbot and RAG infrastructure
+    |                       Chatbot and RAG infrastructure
     |
     v
 Trino + Iceberg           Lakehouse query layer
     |
     v
-dbt Models                Bronze -> Silver -> Gold -> Reports -> Audit
+dbt Models                Bronze -> Silver -> Gold -> Reports -> Audit -> Vector DB
+    |
+    +--> Superset          BI dashboards
+    |
+    +--> FastAPI + Discord Chatbot
 ```
 
 | Layer | Technology | Purpose |
 | --- | --- | --- |
-| 🕷️ Ingestion | Python, Selenium, BeautifulSoup | Crawl job postings and company information. |
+| 🕷️ Ingestion | Python, Selenium, BeautifulSoup, Requests | Crawl job postings and company information. |
 | 🌬️ Orchestration | Apache Airflow | Schedule, run, retry, and monitor pipelines. |
 | 🧪 Validation | Great Expectations | Validate crawled data before downstream usage. |
 | 🪣 Storage | MinIO | Store warehouse files and crawled objects. |
 | 🧊 Query Engine | Trino, Iceberg | Query lakehouse tables with SQL. |
 | 🐘 Metadata | PostgreSQL | Store Airflow, application, and catalog metadata. |
+| 🧱 Transformation | dbt | Build curated analytical models. |
+| 📊 BI | Superset | Explore and visualize report tables. |
 | 🧠 Vector Store | Chroma | Store embeddings for chatbot/RAG retrieval. |
 | 🍃 Chat Storage | MongoDB | Store chatbot conversation messages. |
-| ⚡ Cache | Redis | Shared API rate limiting, cache, or queue support. |
-| 🧱 Transformation | dbt | Build curated analytical models. |
+| ⚡ Cache | Redis | Shared API rate limiting and cache-oriented extensions. |
 | 🔔 Notification | Discord | Send or publish pipeline outputs. |
 
 ---
@@ -102,8 +109,10 @@ dbt Models                Bronze -> Silver -> Gold -> Reports -> Audit
 | Transformation | dbt Core, dbt-trino |
 | Query Engine | Trino |
 | Table Format / Catalog | Iceberg, JDBC catalog |
+| BI | Apache Superset |
 | Databases | PostgreSQL 16.4, MongoDB 8.0, Chroma 1.5.2, Redis 7.4 |
 | Object Storage | MinIO |
+| Apps | FastAPI, Discord.py |
 | DevOps | Docker, Docker Compose, Makefile |
 | Code Quality | Ruff, pytest, pre-commit |
 
@@ -116,6 +125,7 @@ dbt Models                Bronze -> Silver -> Gold -> Reports -> Audit
 ├── apps/
 │   ├── api/                  # FastAPI RAG backend for chatbot/job search
 │   └── bot/                  # Discord slash-command bot
+├── assets/                   # Demo screenshots
 ├── infra/
 │   ├── airflow/
 │   │   ├── dags/              # Airflow DAG definitions
@@ -128,16 +138,13 @@ dbt Models                Bronze -> Silver -> Gold -> Reports -> Audit
 │   ├── chroma/                # Chroma vector database compose config
 │   ├── minio/                 # MinIO object storage compose config
 │   ├── mongodb/               # MongoDB compose config and chat collection bootstrap
-│   ├── postgresql/
-│   │   ├── init_db/           # Database creation scripts
-│   │   ├── init_schema_table/ # Job database schema/table scripts
-│   │   └── init_wh_catalog/   # Iceberg JDBC catalog tables
+│   ├── postgresql/            # PostgreSQL init scripts
 │   ├── redis/                 # Redis compose config
-│   └── trino/
-│       ├── etc/               # Trino runtime and catalog configuration
-│       └── init_schema/       # Warehouse schema initialization SQL
-├── docker-compose.yml         # Local platform entrypoint with included service compose files
-├── Makefile                   # Common development commands
+│   ├── superset/              # Superset compose config and datasource bootstrap
+│   └── trino/                 # Trino runtime, catalog config, and schema init
+├── tests/                     # API, bot, and Airflow tests
+├── docker-compose.yml         # Local platform entrypoint
+├── Makefile                   # Common local commands
 ├── requirements.txt           # Local Python dependencies
 └── .env.example               # Environment variable template
 ```
@@ -147,10 +154,10 @@ Folder-level documentation:
 | Path | Documentation | What to read it for |
 | --- | --- | --- |
 | `apps/` | [`apps/README.md`](apps/README.md) | Application services overview and app runtime flow. |
-| `apps/api/` | [`apps/api/README.md`](apps/api/README.md) | FastAPI endpoints, RAG logic, Chroma/MongoDB/GenAI env vars. |
-| `apps/bot/` | [`apps/bot/README.md`](apps/bot/README.md) | Discord slash commands, bot env vars, API integration. |
+| `apps/api/` | [`apps/api/README.md`](apps/api/README.md) | FastAPI endpoints, RAG logic, Chroma/MongoDB/GenAI settings. |
+| `apps/bot/` | [`apps/bot/README.md`](apps/bot/README.md) | Discord slash commands, bot settings, API integration. |
 | `infra/` | [`infra/README.md`](infra/README.md) | Infrastructure services, Compose files, platform data flow. |
-| `infra/airflow/` | [`infra/airflow/README.md`](infra/airflow/README.md) | DAGs, dbt layers, crawlers, embedding flow, Airflow env vars. |
+| `infra/airflow/` | [`infra/airflow/README.md`](infra/airflow/README.md) | DAGs, dbt layers, crawlers, embedding flow, Airflow settings. |
 
 ---
 
@@ -161,8 +168,9 @@ Folder-level documentation:
 | Bronze | `infra/airflow/dbt_jobflow/models/bronze` | Source-aligned staging tables. |
 | Silver | `infra/airflow/dbt_jobflow/models/silver` | Cleaned and unified intermediate models. |
 | Gold | `infra/airflow/dbt_jobflow/models/gold` | Facts and dimensions for analytics. |
-| Reports | `infra/airflow/dbt_jobflow/models/reports` | Business-ready report tables. |
+| Reports | `infra/airflow/dbt_jobflow/models/reports` | Business-ready report tables for Superset. |
 | Audit | `infra/airflow/dbt_jobflow/models/audit` | Pipeline performance and ELT summary models. |
+| Vector DB | `infra/airflow/dbt_jobflow/models/vector_db` | Job text and metadata prepared for Chroma embedding. |
 
 ---
 
@@ -172,32 +180,34 @@ Folder-level documentation:
 | --- | --- | --- |
 | Airflow Webserver | http://localhost:8080 | Manage DAGs and monitor pipeline runs. |
 | Trino | http://localhost:8081 | SQL query endpoint mapped to container port `8080`. |
+| Superset | http://localhost:8088 | BI dashboard and visualization UI for Trino/Iceberg report tables. |
 | MinIO API | http://localhost:9000 | S3-compatible object storage API. |
 | MinIO Console | http://localhost:9001 | Object storage web console. |
 | Chroma | http://localhost:8000 | Vector database HTTP endpoint. |
-| Chatbot API | http://localhost:8100 | FastAPI RAG backend for Chroma retrieval and Gemma responses. |
+| Chatbot API | http://localhost:8100 | FastAPI RAG backend for Chroma retrieval and GenAI responses. |
 | PostgreSQL | `localhost:5432` | Metadata, job data, and catalog database. |
 | MongoDB | `localhost:27017` | Chatbot message database. |
-| Redis | `localhost:6379` | Cache/queue service. |
-
-Default local credentials are created from `.env.example` when `make run` creates `.env`.
+| Redis | `localhost:6379` | Rate-limit/cache service. |
 
 ---
 
-## ⚙️ Prerequisites
+## ⚙️ Configuration
 
-Make sure these tools are installed:
+Copy `.env.example` to `.env` before running locally. The default values are enough to start the Docker stack.
 
-- Docker
-- Docker Compose
-- Make
-- Python 3.12, only needed for local linting and tests outside Docker
+Only update the values you actually need, usually:
+
+- `GOOGLE_API_KEY` and `GOOGLE_GENAI_MODEL` for chatbot answer generation.
+- `DISCORD_BOT_ENABLED`, `DISCORD_TOKEN`, `DISCORD_GUILD_ID`, and `DISCORD_CHANNEL_ID` for Discord bot or alert posting.
+- Host ports only if a local port is already occupied.
+
+Detailed variable descriptions live in `.env.example` and the folder-level README files.
 
 ---
 
 ## 🚀 Quick Start
 
-Clone the repository and start the full local platform:
+Requirements: Docker, Docker Compose, Make, and Python 3.12 for local checks.
 
 ```bash
 git clone <repository-url>
@@ -205,38 +215,18 @@ cd jobflow-data-pipeline
 make run
 ```
 
-`make run` will:
+After the containers are healthy, open the services listed above. For Airflow, log in with `DB_USER` / `DB_PASSWORD` from `.env`.
 
-- Create `.env` from `.env.example` when `.env` does not exist.
-- Create required persistent Docker volumes when they do not exist.
-- Build the Airflow image.
-- Start PostgreSQL, Airflow, MinIO, Trino, and initialization containers.
-- Start Chroma, MongoDB, and Redis.
-- Print the local service URLs.
+---
 
-After the containers are healthy, open:
-
-- Airflow: http://localhost:8080
-- Trino: http://localhost:8081
-- MinIO Console: http://localhost:9001
-- Chroma: http://localhost:8000
-- Chatbot API: http://localhost:8100
-
-### Chatbot API and Discord Bot
+## 🤖 Chatbot API and Discord Bot
 
 The chatbot runtime is split into two services:
 
 - `apps/api/`: FastAPI backend with `/health`, `/chat`, `/jobs/search`, and `/chat/history/{user_id}`.
 - `apps/bot/`: Discord slash-command bot with `/ask`, `/jobs`, and `/reset`.
 
-Before using `/ask`, make sure the embedding DAG has populated Chroma and set these variables in `.env`:
-
-```bash
-GOOGLE_API_KEY="your_google_ai_api_key"
-GOOGLE_GENAI_MODEL="gemini-2.0-flash"
-DISCORD_TOKEN="your_discord_token"
-DISCORD_GUILD_ID="optional_test_guild_id"
-```
+Before using `/ask`, make sure the embedding pipeline has populated Chroma and the chatbot variables in `.env` are configured.
 
 For local development outside Docker:
 
@@ -261,7 +251,7 @@ Example `/chat` request:
 ```json
 {
   "user_id": "discord-user-id",
-  "message": "Có job Data Engineer ở TP.HCM không?"
+  "message": "Co job Data Engineer o TP.HCM khong?"
 }
 ```
 
@@ -272,8 +262,6 @@ Example `/jobs/search` request:
   "query": "backend Python remote"
 }
 ```
-
-The API infers the answer size from the request text. For example, `cho tôi 2 job lương cao nhất` returns 2 jobs, while a broad search returns at most 5 jobs unless an explicit `top_k` override is sent.
 
 All chatbot responses include `sources`, `retrieved_jobs`, and `usage_context` so clients can inspect which job records were retrieved.
 
@@ -287,156 +275,27 @@ All chatbot responses include `sources`, `retrieved_jobs`, and `usage_context` s
 
 ---
 
-## 🔐 Environment Variables
-
-Create your local environment file:
-
-```bash
-cp .env.example .env
-```
-
-Important variables by subsystem:
-
-### Discord and Chatbot Apps
-
-| Variable | Default | Used by | Description |
-| --- | --- | --- | --- |
-| `DISCORD_BOT_ENABLED` | `false` | `apps/bot` | Enables Discord login. Defaults to false so `docker compose up -d` is stable before a real token is configured. |
-| `DISCORD_TOKEN` | `your_discord_token` | Airflow posting tasks, `apps/bot` | Discord bot token. Required for the bot and Discord post tasks. |
-| `DISCORD_CHANNEL_ID` | `your_discord_channel_id` | Airflow posting tasks | Channel id used by job alert posting tasks. |
-| `DISCORD_GUILD_ID` | empty | `apps/bot` | Optional guild id for faster slash-command sync during development. |
-| `API_HOST_PORT` | `8100` | Docker Compose | Host port exposed for `apps/api`. |
-| `API_BASE_URL` | `http://api:8100` | `apps/bot` | Base URL the bot uses to call the API inside Docker. For local bot dev, use `http://localhost:8100`. |
-| `API_TIMEOUT_SECONDS` | `120` | `apps/bot` | HTTP timeout for bot-to-API calls. |
-| `GOOGLE_API_KEY` | empty | `apps/api` | Google AI API key. Required by `POST /chat`. |
-| `GOOGLE_GENAI_MODEL` | `gemini-2.0-flash` | `apps/api` | Model id used by `google-genai`. |
-| `GOOGLE_GENAI_TEMPERATURE` | `0.2` | `apps/api` | LLM generation temperature. |
-| `CHAT_HISTORY_LIMIT` | `6` | `apps/api` | Number of recent MongoDB messages loaded for prompt context. |
-| `RATE_LIMIT_ENABLED` | `true` | `apps/api` | Enables anti-spam throttling backed by Redis when available. |
-| `RATE_LIMIT_REQUESTS` | `10` | `apps/api` | Maximum requests per key inside the configured window. |
-| `RATE_LIMIT_WINDOW_SECONDS` | `60` | `apps/api` | Fixed-window size in seconds. |
-| `RATE_LIMIT_SEARCH_ENABLED` | `true` | `apps/api` | Applies rate limiting to `/jobs/search` in addition to `/chat`. |
-
-### PostgreSQL and Airflow
-
-| Variable | Default | Used by | Description |
-| --- | --- | --- | --- |
-| `POSTGRES_HOST_PORT` | `5432` | PostgreSQL Compose service | Host port exposed for PostgreSQL. |
-| `DB_USER` | `user` | PostgreSQL, Airflow, dbt | Local database username and Airflow admin username. |
-| `DB_PASSWORD` | `password` | PostgreSQL, Airflow, dbt | Local database password and Airflow admin password. |
-| `DB_HOST` | `postgresql_db` | Airflow, dbt, app services in Docker | PostgreSQL service hostname. |
-| `DB_PORT` | `5432` | Airflow, dbt | PostgreSQL container port. |
-| `DB_JOB` | `job_db` | Crawlers, PostgreSQL init, dbt | Job application database. |
-| `DB_AIRFLOW` | `airflow_db` | Airflow | Airflow metadata database. |
-| `DB_TRINO` | `catalog_wh` | Trino/Iceberg | Iceberg JDBC catalog metadata database. |
-| `AIRFLOW_WEBSERVER_PORT` | `8080` | Airflow Compose service | Host port for Airflow UI. |
-| `AIRFLOW_WEBSERVER_SECRET_KEY` | `random_secret_key` | Airflow | Webserver secret key. |
-| `TRINO_CONN_ID` | `trino_default` | Airflow | Airflow connection id used by embedding tasks to query Trino. |
-| `EMAIL`, `EMAIL_PASSWORD` | `no_need` | Airflow env template | Placeholder values for email-related extensions. |
-
-### MinIO and Trino
-
-| Variable | Default | Used by | Description |
-| --- | --- | --- | --- |
-| `MINIO_VERSION` | image tag | MinIO Compose service | MinIO server image version. |
-| `MINIO_MC_VERSION` | image tag | MinIO init service | MinIO client image version. |
-| `MINIO_USER` | `user` | MinIO, Airflow, Trino | MinIO root/access username. |
-| `MINIO_PASSWORD` | `password` | MinIO, Airflow, Trino | MinIO root/access password. |
-| `MINIO_API_PORT` | `9000` | MinIO Compose service | Host port for S3-compatible API. |
-| `MINIO_CONSOLE_PORT` | `9001` | MinIO Compose service | Host port for MinIO console. |
-| `MINIO_WAREHOUSE_BUCKET` | `warehouse` | MinIO, Trino/Iceberg | Bucket for warehouse data. |
-| `MINIO_CRAWLED_DATA_BUCKET` | `crawled-data` | Crawlers, MinIO | Bucket for crawled raw/object data. |
-| `TRINO_VERSION` | `481` | Trino Compose service | Trino image version. |
-| `TRINO_HOST_PORT` | `8081` | Trino Compose service | Host port for Trino HTTP. |
-
-### Chroma, MongoDB, Redis, and Volumes
-
-| Variable | Default | Used by | Description |
-| --- | --- | --- | --- |
-| `CHROMA_VERSION` | `1.5.2` | Chroma Compose service | Chroma image version. |
-| `CHROMA_HOST` | `chroma` | Airflow, `apps/api` | Chroma hostname inside Docker. |
-| `CHROMA_HOST_PORT` | `8000` | Chroma Compose service | Host port exposed for Chroma. |
-| `CHROMA_PORT` | `8000` | Chroma, Airflow, `apps/api` | Chroma container/API port. |
-| `CHROMA_LISTEN_ADDRESS` | `0.0.0.0` | Chroma | Listen address inside the container. |
-| `CHROMA_PERSIST_PATH` | `/data` | Chroma | Persisted data path in the container. |
-| `CHROMA_ALLOW_RESET` | `false` | Chroma | Whether Chroma reset API is allowed. |
-| `CHROMA_COLLECTION_NAME` | `job_embeddings` | Airflow, `apps/api` | Job embedding collection used for RAG. |
-| `CHROMA_BATCH_SIZE` | `20` | Airflow embedding task | Batch size for adding documents to Chroma. |
-| `MONGODB_VERSION` | `8.0` | MongoDB Compose service | MongoDB image version. |
-| `MONGODB_USERNAME` | `user` | MongoDB, `apps/api` | MongoDB username. |
-| `MONGODB_PASSWORD` | `password` | MongoDB, `apps/api` | MongoDB password. |
-| `MONGODB_DB` | `jobflow` | MongoDB, `apps/api` | Database containing `chat_messages`. |
-| `MONGODB_AUTH_SOURCE` | `admin` | `apps/api` | MongoDB authentication database. |
-| `MONGODB_CHAT_COLLECTION` | `chat_messages` | `apps/api` | Collection used for per-user chat history. |
-| `MONGODB_HOST` | `mongodb` | Airflow env, `apps/api` | MongoDB hostname inside Docker. |
-| `MONGODB_PORT` | `27017` | MongoDB, `apps/api` | MongoDB container port. |
-| `MONGODB_HOST_PORT` | `27017` | MongoDB Compose service | Host port exposed for MongoDB. |
-| `REDIS_VERSION` | `7.4.9-alpine` | Redis Compose service | Redis image version. |
-| `REDIS_HOST` | `redis` | Airflow env, `apps/api` | Redis hostname inside Docker. |
-| `REDIS_PORT` | `6379` | Redis | Redis container port. |
-| `REDIS_HOST_PORT` | `6379` | Redis Compose service | Host port exposed for Redis. |
-| `REDIS_DB` | `0` | `apps/api` | Redis database index used for API rate-limit counters. |
-| `REDIS_SOCKET_TIMEOUT_SECONDS` | `2.0` | `apps/api` | Redis connection/read timeout in seconds. |
-| `REDIS_RATE_LIMIT_PREFIX` | `jobflow:rate_limit` | `apps/api` | Prefix for API rate-limit keys. |
-| `POSTGRES_VOLUME_NAME` | `jobflow_postgres_data` | Docker | Persistent PostgreSQL volume. |
-| `MINIO_VOLUME_NAME` | `jobflow_minio_data` | Docker | Persistent MinIO volume. |
-| `CHROMA_VOLUME_NAME` | `jobflow_chroma_data` | Docker | Persistent Chroma volume. |
-| `MONGODB_VOLUME_NAME` | `jobflow_mongodb_data` | Docker | Persistent MongoDB volume. |
-
-For local Docker usage, the default values in `.env.example` are enough to start the stack.
-
-PostgreSQL SQL init files read `DB_JOB` and `DB_TRINO` from the container environment, so changing those database names in a fresh environment will create matching databases and schemas. If volumes already exist, changing database names requires resetting the Postgres volume first.
-
----
-
-## 🕹️ Common Commands
-
-| Command | Description |
-| --- | --- |
-| `make help` | Show available commands. |
-| `make run` | Set up `.env`, build images, and start all services. |
-| `make docker-up` | Start services without rebuilding. The API and Discord bot mount local code and reload after saving. |
-| `make docker-up-build` | Build images and start services. |
-| `make docker-ps` | Show running service status. |
-| `make docker-logs` | Follow logs from all services. |
-| `make docker-restart` | Restart all services. |
-| `make docker-down` | Stop all services. |
-| `make docker-volume-init` | Create the persistent Docker volumes used by Compose. |
-| `make docker-shell-airflow` | Open a shell inside the Airflow webserver container. |
-| `make install` | Install local Python dependencies into `.venv`. |
-| `make format` | Format Python code with Ruff. |
-| `make format-check` | Check Python formatting without changing files. |
-| `make lint` | Run Ruff linting with auto-fix. |
-| `make lint-check` | Check Python lint issues without changing files. |
-| `make test` | Run pytest. |
-| `make pre-commit-install` | Install local pre-commit hooks. |
-| `make pre-commit-run` | Run pre-commit hooks against all files. |
-| `make check` | Run formatting check, Ruff lint/fix, and pytest. |
-
----
-
 ## ▶️ Running Pipelines
 
-1. Start the platform:
+Start the platform with `make run`, open Airflow at http://localhost:8080, then trigger the main DAG:
 
-   ```bash
-   make run
-   ```
+```text
+master_job_elt
+```
 
-2. Open Airflow at http://localhost:8080.
+The main DAG coordinates ITViec and TopCV crawlers, post-processing tasks, company logo processing, dbt warehouse transformations, and downstream embedding work.
 
-3. Log in with the credentials from `.env`:
+Useful DAG ids:
 
-   - Username: value of `DB_USER`
-   - Password: value of `DB_PASSWORD`
-
-4. Enable and trigger the main DAG:
-
-   ```text
-   master_job_elt
-   ```
-
-The main DAG coordinates ITViec and TopCV crawlers, post-processing tasks, company logo processing, and dbt warehouse transformations.
+| DAG | Purpose |
+| --- | --- |
+| `master_job_elt` | End-to-end orchestration. |
+| `topcv_pipeline` | TopCV crawl pipeline. |
+| `itviec_pipeline` | ITViec crawl pipeline. |
+| `dbt_pipeline` | dbt transformation pipeline. |
+| `embed_vector_db_pipeline` | Build vector-search rows and write embeddings to Chroma. |
+| `post_job_elt` | Post unposted job alerts to Discord. |
+| `image_processing_pipeline` | Process company logo/image assets. |
 
 ---
 
@@ -456,57 +315,24 @@ Example SQL:
 SHOW CATALOGS;
 SHOW SCHEMAS FROM iceberg;
 SHOW TABLES FROM iceberg.gold;
+SHOW TABLES FROM iceberg.reports;
 ```
 
 ---
 
-## 🧪 Local Development
+## 🖼️ Demo Screenshots
 
-Install dependencies into the local virtual environment:
+| Airflow Master Pipeline | Superset BI |
+| --- | --- |
+| ![Airflow Master Pipeline](assets/Airflow_Master_Pipeline.png) | ![Superset BI](assets/Superset_BI.png) |
 
-```bash
-python -m venv .venv
-make install
-```
+| MinIO Object Store | Discord Chat Bot |
+| --- | --- |
+| ![MinIO Object Store](assets/MinIO_Object_Store.png) | ![Discord Chat Bot](assets/Discord_Chat_Bot.png) |
 
-Run quality checks:
-
-```bash
-make format
-make lint
-make test
-```
-
-Run all checks:
-
-```bash
-make check
-```
-
----
-
-## 🧹 Resetting Local Services
-
-Stop containers:
-
-```bash
-make docker-down
-```
-
-If you need a completely fresh database and object storage state, remove Docker volumes manually after stopping the stack:
-
-```bash
-docker volume rm jobflow_postgres_data
-docker volume rm jobflow_minio_data
-docker volume rm jobflow_chroma_data
-docker volume rm jobflow_mongodb_data
-```
-
-Then start again:
-
-```bash
-make run
-```
+| Discord Job Alert |
+| --- |
+| ![Discord Job Alert](assets/Discord_Job_Alert.png) |
 
 ---
 
