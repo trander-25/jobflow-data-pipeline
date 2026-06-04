@@ -6,4 +6,5 @@ def test_prompt_warns_model_when_no_context():
 
     assert "No retrieved jobs." in prompt
     assert "Do not invent company names" in prompt
+    assert 'Do not add a separate "Sources" section.' in prompt
     assert "Có job Python remote không?" in prompt

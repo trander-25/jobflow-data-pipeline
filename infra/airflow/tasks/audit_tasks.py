@@ -8,9 +8,10 @@ logger = logging.getLogger(__name__)
 
 
 class AuditLogger:
-    """Utility class for logging audit data to audit.master_job_elt_audit table"""
+    """Write Airflow task execution metadata to the audit warehouse table."""
 
     def __init__(self):
+        """Create a database engine and cache SQLAlchemy helpers for audit writes."""
         from scripts.utils.db_conn import DBConnection
         from sqlalchemy import text
         from sqlalchemy.exc import SQLAlchemyError
@@ -22,7 +23,7 @@ class AuditLogger:
         self.engine = self.db_conn.engine
 
     def _determine_task_type(self, task_id: str) -> str:
-        """Determine task type from task_id"""
+        """Infer the task implementation type from an Airflow task id."""
         if "bash" in task_id.lower() or "dbt" in task_id.lower():
             return "bash"
         elif "post" in task_id.lower() or "discord" in task_id.lower():
@@ -35,7 +36,7 @@ class AuditLogger:
             return "python"
 
     def _determine_data_source(self, task_id: str) -> Optional[str]:
-        """Determine data source from task_id"""
+        """Infer the source platform or dbt layer represented by a task id."""
         task_id_lower = task_id.lower()
         if "itviec" in task_id_lower:
             return "itviec"
@@ -50,7 +51,7 @@ class AuditLogger:
         return None
 
     def _determine_layer(self, task_id: str) -> Optional[str]:
-        """Determine data layer from task_id"""
+        """Infer the warehouse layer represented by a task id."""
         task_id_lower = task_id.lower()
         if "bronze" in task_id_lower:
             return "bronze"
@@ -80,25 +81,24 @@ class AuditLogger:
         error_type: Optional[str] = None,
         additional_metadata: Optional[Dict[str, Any]] = None,
     ):
-        """
-        Log task execution to audit table
+        """Log one Airflow task execution event into audit.master_job_elt_audit.
 
         Args:
-            context: Airflow task context (from task callbacks or task instance)
-            task_status: Task status ('success', 'failed', 'skipped', 'retry')
-            rows_processed: Number of rows processed
-            rows_inserted: Number of rows inserted
-            rows_updated: Number of rows updated
-            rows_scraped: Number of rows scraped (for crawling tasks)
-            rows_posted_discord: Number of Discord posts sent
-            discord_posts_failed: Number of failed Discord posts
-            dbt_models_run: Number of dbt models run
-            dbt_models_success: Number of successful dbt models
-            dbt_models_failed: Number of failed dbt models
-            dbt_command: Full dbt command executed
-            error_message: Error message if task failed
-            error_type: Type of error
-            additional_metadata: Additional metadata to include
+            context: Airflow task context passed by a callback.
+            task_status: Task status such as "success", "failed", "skipped", or "retry".
+            rows_processed: Number of records processed by the task.
+            rows_inserted: Number of records inserted by the task.
+            rows_updated: Number of records updated by the task.
+            rows_scraped: Number of records scraped by crawler tasks.
+            rows_posted_discord: Number of Discord posts sent successfully.
+            discord_posts_failed: Number of Discord posts that failed to send.
+            dbt_models_run: Number of dbt models executed.
+            dbt_models_success: Number of successful dbt models.
+            dbt_models_failed: Number of failed dbt models.
+            dbt_command: dbt command associated with the task.
+            error_message: Failure message, when available.
+            error_type: Failure class name, when available.
+            additional_metadata: Optional overrides such as data_source, layer, or task_group.
         """
         try:
             # Extract context information
@@ -295,12 +295,12 @@ class AuditLogger:
 
 
 def get_audit_logger() -> AuditLogger:
-    """Factory function to get AuditLogger instance"""
+    """Create a fresh AuditLogger for an Airflow callback."""
     return AuditLogger()
 
 
 def task_success_callback(context):
-    """Log successful task execution to audit table"""
+    """Record successful Python task execution metrics in the audit table."""
 
     audit_logger = get_audit_logger()
 
@@ -335,7 +335,7 @@ def task_success_callback(context):
 
 
 def task_failure_callback(context):
-    """Log failed task execution to audit table"""
+    """Record failed task execution details in the audit table."""
 
     audit_logger = get_audit_logger()
 
@@ -348,7 +348,7 @@ def task_failure_callback(context):
 
 
 def dbt_task_callback(context):
-    """Log dbt task execution to audit table"""
+    """Record successful dbt task execution in the audit table."""
 
     audit_logger = get_audit_logger()
 
@@ -373,7 +373,7 @@ def dbt_task_callback(context):
 
 
 def discord_task_callback(context):
-    """Log discord task to audit table"""
+    """Record Discord posting metrics in the audit table."""
 
     audit_logger = get_audit_logger()
 

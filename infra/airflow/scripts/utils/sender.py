@@ -16,6 +16,7 @@ ALLOWED_JOB_TABLES = {"topcv_data_job", "itviec_data_job"}
 
 
 def _job_table_ref(table_name: str) -> str:
+    """Return a fully qualified staging table reference for an allowed job table."""
     if table_name not in ALLOWED_JOB_TABLES:
         raise ValueError(f"Unsupported job table: {table_name}")
 
@@ -24,6 +25,14 @@ def _job_table_ref(table_name: str) -> str:
 
 
 def query_unposted_jobs(table_name: str):
+    """Fetch jobs that have not yet been sent to Discord.
+
+    Args:
+        table_name: Allowed staging job table name.
+
+    Returns:
+        A tuple containing Discord-ready job dictionaries and their source URLs.
+    """
     engine = DBConnection().engine
     salary_col = "salary" if table_name == "topcv_data_job" else "'Sign-in ITViec for details.'"
     table_ref = _job_table_ref(table_name)
@@ -43,6 +52,7 @@ def query_unposted_jobs(table_name: str):
 
 
 def mark_jobs_as_posted(table_name: str, job_urls: list):
+    """Mark successfully sent job URLs as posted in the staging table."""
     if not job_urls:
         return
 
@@ -59,7 +69,17 @@ def mark_jobs_as_posted(table_name: str, job_urls: list):
 
 
 async def send_jobs(jobs: List[dict], token: str, channel_id: int, throttle: float = 0.5) -> Any:
-    """Send embeds to Discord. Import `discord` lazily so module import doesn't fail during DAG parsing."""
+    """Send job embeds to Discord with optional throttling between messages.
+
+    Args:
+        jobs: Job records formatted for Discord embeds.
+        token: Discord bot token.
+        channel_id: Target Discord channel id.
+        throttle: Delay in seconds between messages.
+
+    Returns:
+        A tuple containing success and failure counts, or None when Discord cannot be initialized.
+    """
     try:
         import discord
     except ImportError:
@@ -106,6 +126,7 @@ async def send_jobs(jobs: List[dict], token: str, channel_id: int, throttle: flo
 
 
 def send_job_alerts(jobs, token: str, channel_id: int):
+    """Synchronously send job alerts to Discord from an Airflow Python task."""
     if not jobs:
         logger.info("No jobs to send")
         return

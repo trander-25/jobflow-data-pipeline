@@ -1,4 +1,5 @@
 def expectations(df):
+    """Attach Great Expectations checks for scraped TopCV records."""
     df.expect_table_row_count_to_be_between(1, 500)
     df.expect_column_values_to_not_be_null("url")
     df.expect_column_values_to_be_unique("url")

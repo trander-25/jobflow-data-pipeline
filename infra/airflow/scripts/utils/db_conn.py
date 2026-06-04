@@ -8,11 +8,14 @@ load_dotenv()
 
 
 class DBConnection:
+    """Create PostgreSQL connections and write crawler outputs to staging tables."""
+
     def __init__(self):
+        """Initialize the SQLAlchemy engine from environment variables."""
         self.engine = self._create_db_connection()
 
     def _create_db_connection(self):
-        """Create database connection"""
+        """Create a SQLAlchemy engine for the job database."""
         db_url = f"postgresql+psycopg2://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_JOB')}"
         try:
             return create_engine(db_url)
@@ -21,14 +24,13 @@ class DBConnection:
             return None
 
     def insert_itviec_jobs(self, jobs):
-        """Insert IT Viec jobs into database"""
+        """Upsert ITViec job records into the staging table."""
 
         engine = self.engine
         if not jobs:
             print("No IT Viec jobs to insert")
 
-        # UpSert jobs into the database
-        # Using ON CONFLICT to handle duplicates based on the URL
+        # Use ON CONFLICT to keep one staging record per source URL.
         query = text("""
             INSERT INTO staging.itviec_data_job (
                 title, company, logo_url, url, job_category, working_location,
@@ -63,7 +65,7 @@ class DBConnection:
             print(f"Database error: {e}")
 
     def insert_topcv_jobs(self, jobs):
-        """Insert TopCV jobs into database"""
+        """Upsert TopCV job records into the staging table."""
 
         engine = self.engine
         if not jobs:
@@ -107,7 +109,7 @@ class DBConnection:
             print(f"Database error: {e}")
 
     def insert_company_logos(self, logos):
-        """Insert company logos into database"""
+        """Insert new company logo URLs into the staging logo table."""
 
         engine = self.engine
         if not logos:
@@ -133,7 +135,7 @@ class DBConnection:
         return None
 
     def update_company_logos(self, logos: list[dict]):
-        """Update company logo path (MinIO path) in database"""
+        """Update downloaded company logo payloads in the staging logo table."""
 
         if not logos:
             print("No company logos to update")

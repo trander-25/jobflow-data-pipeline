@@ -3,7 +3,14 @@ import os
 
 
 def load_crawl_sources(file_name: str):
-    """Load the list of web sources from the JSON configuration file."""
+    """Load crawl source URLs from a JSON file in the Airflow scripts directory.
+
+    Args:
+        file_name: JSON file name, for example "source_itviec.json".
+
+    Returns:
+        Parsed JSON content, or None when the file is missing or invalid.
+    """
     file_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), f"{file_name}")
     try:
         with open(file_path) as f:

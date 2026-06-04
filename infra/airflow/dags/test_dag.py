@@ -11,12 +11,16 @@ from airflow.decorators import dag, task
     tags=["test"],
 )
 def test_dag():
+    """Build a simple smoke-test DAG used to verify Airflow task execution."""
+
     @task
     def print_hello():
+        """Print the first smoke-test message."""
         print("Hello, TRANDER!")
 
     @task
     def print_wellcome():
+        """Print the second smoke-test message."""
         print("Welcome, TRANDER!")
 
     print_hello() >> print_wellcome()

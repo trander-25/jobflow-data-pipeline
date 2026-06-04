@@ -54,10 +54,11 @@ Request:
 
 ```json
 {
-  "query": "data engineer remote Python",
-  "top_k": 5
+  "query": "data engineer remote Python"
 }
 ```
+
+The API infers the result size from natural language. For example, `cho tôi 2 job lương cao nhất` returns 2 jobs; broad searches return at most 5 jobs. `top_k` is still accepted as a manual API override.
 
 Response fields:
 
@@ -66,7 +67,7 @@ Response fields:
 | `answer` | Empty string for this endpoint. |
 | `sources` | Compact source links with job id, title, company, and URL. |
 | `retrieved_jobs` | Full mapped job metadata returned from Chroma. |
-| `usage_context` | Retrieval settings such as `top_k`, `retrieved_count`, and `llm_used=false`. |
+| `usage_context` | Retrieval settings such as requested count, retrieval mode, retrieved count, and `llm_used=false`. |
 
 ### `POST /chat`
 
@@ -77,8 +78,7 @@ Request:
 ```json
 {
   "user_id": "discord-user-id",
-  "message": "Có job Data Engineer ở TP.HCM không?",
-  "top_k": 5
+  "message": "Có job Data Engineer ở TP.HCM không?"
 }
 ```
 
@@ -89,7 +89,7 @@ Response fields:
 | `answer` | Model-generated answer grounded in retrieved jobs. |
 | `sources` | Job links used as answer sources. |
 | `retrieved_jobs` | Full retrieved jobs for UI/debug display. |
-| `usage_context` | `top_k`, retrieved count, history count, model id, and `llm_used=true`. |
+| `usage_context` | Requested count, retrieval mode, retrieved count, history count, model id, and `llm_used=true`. |
 
 If `GOOGLE_API_KEY` is not configured, or if Google GenAI rejects the configured model/request, this endpoint returns a fallback answer with `usage_context.llm_used=false` and `usage_context.llm_error` so Discord users still receive retrieved job sources instead of a bot error.
 
@@ -123,24 +123,27 @@ Response:
 | `GOOGLE_API_KEY` | empty | Google AI API key. Required for `/chat`. |
 | `GOOGLE_GENAI_MODEL` | `gemini-2.0-flash` | Model id passed to `google-genai`. |
 | `GOOGLE_GENAI_TEMPERATURE` | `0.2` | Generation temperature. |
-| `RAG_DEFAULT_TOP_K` | `5` | Default retrieval count when `top_k` is omitted. |
-| `RAG_MAX_TOP_K` | `10` | Maximum retrieval count accepted by the API service. |
 | `CHAT_HISTORY_LIMIT` | `6` | Number of recent messages loaded from MongoDB. |
-| `RATE_LIMIT_ENABLED` | `true` | Enables in-memory request throttling. |
+| `RATE_LIMIT_ENABLED` | `true` | Enables request throttling. |
 | `RATE_LIMIT_REQUESTS` | `10` | Maximum requests allowed per rate-limit key. |
-| `RATE_LIMIT_WINDOW_SECONDS` | `60` | Rolling time window for the request limit. |
+| `RATE_LIMIT_WINDOW_SECONDS` | `60` | Fixed-window size for the request limit. |
 | `RATE_LIMIT_SEARCH_ENABLED` | `true` | Applies rate limiting to `/jobs/search` as well as `/chat`. |
+| `REDIS_HOST` | `redis` | Redis host used by the rate limiter. |
+| `REDIS_PORT` | `6379` | Redis port used by the rate limiter. |
+| `REDIS_DB` | `0` | Redis database index used by the rate limiter. |
+| `REDIS_SOCKET_TIMEOUT_SECONDS` | `2.0` | Redis connection/read timeout in seconds. |
+| `REDIS_RATE_LIMIT_PREFIX` | `jobflow:rate_limit` | Prefix for rate-limit keys stored in Redis. |
 | `API_HOST_PORT` | `8100` | Host port used by Docker Compose. |
 
 ## Rate Limiting
 
-The API uses an in-memory rolling-window limiter to reduce chatbot spam:
+The API uses Redis-backed fixed-window rate limiting to reduce chatbot spam:
 
 - `/chat` is limited by `user_id`.
 - `/jobs/search` is limited by `user_id` when provided, otherwise by client host.
 - When the limit is exceeded, the API returns HTTP `429` with a `Retry-After` header.
 
-Default behavior allows `10` requests per `60` seconds per key. Because the limiter is in-memory, counters reset when the API container restarts. If the API is scaled to multiple replicas later, replace this with a Redis-backed limiter.
+Default behavior allows `10` requests per `60` seconds per key. Counters are stored in Redis with keys like `jobflow:rate_limit:chat:<user_id>` and `jobflow:rate_limit:jobs:<user_id-or-client-host>`, so multiple API replicas share the same rate-limit state. If Redis is unavailable at startup, the API logs the error and falls back to the in-memory limiter for local resilience.
 
 ## Running Locally
 

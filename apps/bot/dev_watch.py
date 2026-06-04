@@ -11,10 +11,12 @@ POLL_SECONDS = float(os.getenv("BOT_WATCH_POLL_SECONDS", "1"))
 
 
 def _snapshot() -> dict[Path, int]:
+    """Return modification timestamps for watched Python files."""
     return {path: path.stat().st_mtime_ns for path in WATCH_DIR.rglob("*.py") if path.is_file()}
 
 
 def _terminate(process: subprocess.Popen[bytes]) -> None:
+    """Terminate a child process gracefully, then force-kill if needed."""
     if process.poll() is not None:
         return
     process.terminate()
@@ -26,10 +28,12 @@ def _terminate(process: subprocess.Popen[bytes]) -> None:
 
 
 def main() -> None:
+    """Run the bot process and restart it when watched source files change."""
     stopping = False
     process: subprocess.Popen[bytes] | None = None
 
     def stop(_signum: int, _frame: object) -> None:
+        """Handle shutdown signals and stop the child bot process."""
         nonlocal stopping
         stopping = True
         if process is not None:

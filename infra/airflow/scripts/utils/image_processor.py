@@ -5,7 +5,10 @@ from PIL import Image
 
 
 class ImageDownloader:
+    """Download and optimize company logo images for storage."""
+
     def __init__(self, timeout: int = 20):
+        """Create a requests session configured for image downloads."""
         self.session = requests.Session()
         self.session.headers.update(
             {
@@ -16,6 +19,14 @@ class ImageDownloader:
         self.timeout = timeout
 
     def process_urls(self, urls: list[str]) -> dict:
+        """Download and optimize multiple image URLs.
+
+        Args:
+            urls: Image URLs to process.
+
+        Returns:
+            A mapping from URL to optimized image bytes, or None for failed URLs.
+        """
         results = {}
 
         for url in urls:
@@ -28,24 +39,20 @@ class ImageDownloader:
         return results
 
     def _process_single(self, url: str) -> bytes:
-        """
-        Final output: raw bytes of the image (Optimized PNG)
-        """
+        """Download one image and return optimized PNG bytes."""
         content = self._download(url)
-
-        # Chỉ nén và chuyển thành PNG, không xóa nền
         return self._optimize_image(content)
 
     def _download(self, url: str) -> bytes:
+        """Download raw image bytes from a URL."""
         r = self.session.get(url, timeout=self.timeout)
         r.raise_for_status()
         return r.content
 
     def _optimize_image(self, content: bytes) -> bytes:
-        # Mở ảnh bằng Pillow
+        """Convert image bytes to an optimized PNG payload."""
         img = Image.open(BytesIO(content))
 
-        # Lưu lại dưới dạng PNG đã tối ưu dung lượng
         buffer = BytesIO()
         img.save(buffer, format="PNG", optimize=True)
 

@@ -8,6 +8,16 @@ logging.basicConfig(level=logging.INFO)
 
 
 def run_ge_validation(records: list[dict], expectation_fn, source_name: str) -> None:
+    """Validate scraped records with a runtime Great Expectations suite.
+
+    Args:
+        records: Scraped records to validate.
+        expectation_fn: Function that attaches source-specific expectations to a validator.
+        source_name: Source platform name used in validation suite and error messages.
+
+    Raises:
+        ValueError: If no records are provided or any expectation fails.
+    """
     if not records:
         raise ValueError(f"[GE] {source_name}: No records to validate")
 

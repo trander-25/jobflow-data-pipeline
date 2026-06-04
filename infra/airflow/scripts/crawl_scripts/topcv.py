@@ -23,20 +23,21 @@ logger = logging.getLogger(__name__)
 
 
 class TopCVScraper:
+    """Scrape TopCV listing pages and enrich records from job detail pages."""
+
     def __init__(self, headless: bool = True):
-        """
-        Initialize the scraper with configurable options.
+        """Initialize scraper options and resolve the ChromeDriver path.
 
         Args:
-            headless: Run Chrome in headless mode
+            headless: Whether Chrome should run without a visible browser window.
         """
         self.headless = headless
-        # Cache driver path on initialization
+        # Cache the driver path once so each task does not resolve it repeatedly.
         logger.info("Initializing ChromeDriver...")
         self._driver_path = ChromeDriverManager().install()
 
     def _get_chrome_options(self) -> Options:
-        """Configure Chrome options."""
+        """Build Chrome options used by the TopCV Selenium driver."""
         chrome_options = Options()
         if self.headless:
             chrome_options.add_argument("--headless=new")
@@ -51,11 +52,12 @@ class TopCVScraper:
         return chrome_options
 
     def _init_driver(self) -> webdriver.Chrome:
-        """Initialize Chrome WebDriver."""
+        """Create a Selenium Chrome driver for TopCV pages."""
         logger.info("Initializing ChromeDriver...")
         return webdriver.Chrome(service=Service(self._driver_path), options=self._get_chrome_options())
 
     def _is_challenge_page(self, soup: BeautifulSoup) -> bool:
+        """Detect captcha or bot-protection challenge pages."""
         title_text = (soup.title.get_text(strip=True) if soup.title else "").lower()
         body_text = soup.get_text(" ", strip=True).lower()
         challenge_signals = [
@@ -69,6 +71,7 @@ class TopCVScraper:
         return any(signal in title_text or signal in body_text for signal in challenge_signals)
 
     def _load_detail_soup(self, driver: webdriver.Chrome, url: str, idx: int, total: int) -> Optional[BeautifulSoup]:
+        """Load one TopCV detail page and parse it into BeautifulSoup."""
         logger.info("Loading TopCV detail page | job=%s/%s url=%s", idx, total, url)
         try:
             driver.get(url)
@@ -89,6 +92,7 @@ class TopCVScraper:
             return None
 
     def _apply_detail_data(self, data: Dict[str, Optional[str]], job_soup: BeautifulSoup) -> None:
+        """Populate detail fields from either a brand page or a standard job page."""
         job_url = data["url"] or ""
         job_cat_div = job_soup.find("div", string=lambda x: x and "Chuyên môn:" in x)
         data["job_cat"] = (
@@ -110,7 +114,7 @@ class TopCVScraper:
         data["type_of_work"] = type_of_work
 
     def _extract_job_info(self, job) -> tuple:
-        """Extract basic job information from job listing."""
+        """Extract basic fields from one TopCV listing card."""
         title = _safe_text(_safe_find(job, "h3"))
         company = _safe_text(_safe_find(job, "a", class_="company"))
         img_tag = job.find("img")
@@ -122,9 +126,10 @@ class TopCVScraper:
         return title, company, logo, job_url, location, salary, exp
 
     def _parse_brand_job(self, soup) -> tuple:
-        """Parse job details from brand job page."""
+        """Parse descriptions, requirements, education, and work type from a TopCV brand page."""
 
         def extract_general_info(div):
+            """Extract label and value elements from a brand-page general-info block."""
             label = div.select_one(".general-information-data__label")
             value = div.select_one(".general-information-data__value")
             if label and value:
@@ -138,6 +143,7 @@ class TopCVScraper:
             return None, None
 
         def extract_description_requirement(div):
+            """Extract title and content elements from a brand-page description block."""
             h2 = div.select_one("h2.premium-job-description__box--title")
             content_div = div.select_one("div.premium-job-description__box--content")
             content = content_div if content_div else None
@@ -154,7 +160,7 @@ class TopCVScraper:
 
         descriptions = requirements = edu = type_of_work = None
 
-        # Parse descriptions and requirements
+        # Parse description and requirement blocks.
         for div in soup.select("div.premium-job-description__box, div.box-info"):
             title, content = extract_description_requirement(div)
 
@@ -168,7 +174,7 @@ class TopCVScraper:
             if descriptions and requirements:
                 break
 
-        # Parse general info (education, type of work)
+        # Parse general information such as education and work type.
         for div in soup.select("div.general-information-data, div.box-item"):
             label, value = extract_general_info(div)
 
@@ -185,7 +191,7 @@ class TopCVScraper:
         return descriptions, requirements, edu, type_of_work
 
     def _parse_job_detail(self, soup) -> tuple:
-        """Parse job details from standard job page."""
+        """Parse descriptions, requirements, education, and work type from a standard TopCV job page."""
 
         descriptions = requirements = edu = type_of_work = None
 
@@ -226,8 +232,16 @@ class TopCVScraper:
         return descriptions, requirements, edu, type_of_work
 
     def scrape_jobs(self, url: str, max_jobs: Optional[int] = None) -> List[Dict[str, str]]:
-        """Main method to scrape jobs from TopCV."""
-        # Initialize driver for listing page
+        """Scrape TopCV jobs from a listing URL.
+
+        Args:
+            url: TopCV listing page URL.
+            max_jobs: Optional maximum number of listing jobs to process.
+
+        Returns:
+            Job records with listing and detail-page fields required by validation.
+        """
+        # Use a short-lived driver for the listing page before detail-page crawling.
         driver = self._init_driver()
         driver.get(url)
 
@@ -271,7 +285,7 @@ class TopCVScraper:
                 data["salary"] = salary
                 data["experience"] = exp
 
-                # Create new driver for each job detail to avoid bot detection
+                # Reuse the detail driver, but recreate it when challenge pages or incomplete data appear.
                 if job_url:
                     try:
                         job_soup = self._load_detail_soup(detail_driver, job_url, idx, len(jobs))

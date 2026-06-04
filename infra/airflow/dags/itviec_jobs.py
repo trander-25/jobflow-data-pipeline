@@ -24,6 +24,7 @@ default_args = {
     tags=["itviec_pipeline"],
 )
 def _itviec_pipeline():
+    """Build a standalone DAG for crawling and staging ITViec jobs."""
     itviec_pipeline()
 
 
