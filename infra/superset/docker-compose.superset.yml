@@ -1,0 +1,35 @@
+services:
+  superset:
+    image: apache/superset:${SUPERSET_VERSION:-4.1.2}
+    container_name: superset
+    restart: always
+    environment:
+      SUPERSET_HOME: /app/superset_home
+      SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY:-jobflow_superset_secret_key}
+      SUPERSET_ADMIN_USERNAME: ${SUPERSET_ADMIN_USERNAME:-admin}
+      SUPERSET_ADMIN_PASSWORD: ${SUPERSET_ADMIN_PASSWORD:-admin}
+      SUPERSET_ADMIN_FIRSTNAME: ${SUPERSET_ADMIN_FIRSTNAME:-JobFlow}
+      SUPERSET_ADMIN_LASTNAME: ${SUPERSET_ADMIN_LASTNAME:-Admin}
+      SUPERSET_ADMIN_EMAIL: ${SUPERSET_ADMIN_EMAIL:-admin@example.com}
+    depends_on:
+      trino:
+        condition: service_started
+    ports:
+      - "${SUPERSET_HOST_PORT:-8088}:8088"
+    volumes:
+      - superset_home:/app/superset_home
+      - ./datasources:/app/superset_import:ro
+    command: >
+      /bin/sh -c "
+      pip install --no-cache-dir --user sqlalchemy-trino trino &&
+      superset db upgrade &&
+      (superset fab create-admin --username \"$${SUPERSET_ADMIN_USERNAME}\" --firstname \"$${SUPERSET_ADMIN_FIRSTNAME}\" --lastname \"$${SUPERSET_ADMIN_LASTNAME}\" --email \"$${SUPERSET_ADMIN_EMAIL}\" --password \"$${SUPERSET_ADMIN_PASSWORD}\" || true) &&
+      superset fab reset-password --username \"$${SUPERSET_ADMIN_USERNAME}\" --password \"$${SUPERSET_ADMIN_PASSWORD}\" &&
+      superset init &&
+      (superset import_datasources -p /app/superset_import/trino.yml || true) &&
+      superset run -h 0.0.0.0 -p 8088
+      "
+
+volumes:
+  superset_home:
+    name: ${SUPERSET_VOLUME_NAME:-jobflow_superset_home}

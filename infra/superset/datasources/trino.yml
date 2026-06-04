@@ -1,0 +1,7 @@
+databases:
+  - database_name: JobFlow Trino Iceberg
+    sqlalchemy_uri: trino://trino@trino:8080/iceberg
+    expose_in_sqllab: true
+    allow_ctas: true
+    allow_cvas: true
+    allow_dml: true
