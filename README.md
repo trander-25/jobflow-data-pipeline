@@ -54,47 +54,7 @@ The project follows a lakehouse-style workflow:
 
 ## 🏗️ Architecture
 
-```text
-Job Sources
-    |
-    v
-Python Crawlers
-    |
-    v
-Airflow Orchestration
-    |
-    +--> PostgreSQL        Operational data, metadata, Airflow database
-    |
-    +--> MinIO             Object storage and warehouse files
-    |
-    +--> Chroma/MongoDB/Redis
-    |                       Chatbot and RAG infrastructure
-    |
-    v
-Trino + Iceberg           Lakehouse query layer
-    |
-    v
-dbt Models                Bronze -> Silver -> Gold -> Reports -> Audit -> Vector DB
-    |
-    +--> Superset          BI dashboards
-    |
-    +--> FastAPI + Discord Chatbot
-```
-
-| Layer | Technology | Purpose |
-| --- | --- | --- |
-| 🕷️ Ingestion | Python, Selenium, BeautifulSoup, Requests | Crawl job postings and company information. |
-| 🌬️ Orchestration | Apache Airflow | Schedule, run, retry, and monitor pipelines. |
-| 🧪 Validation | Great Expectations | Validate crawled data before downstream usage. |
-| 🪣 Storage | MinIO | Store warehouse files and crawled objects. |
-| 🧊 Query Engine | Trino, Iceberg | Query lakehouse tables with SQL. |
-| 🐘 Metadata | PostgreSQL | Store Airflow, application, and catalog metadata. |
-| 🧱 Transformation | dbt | Build curated analytical models. |
-| 📊 BI | Superset | Explore and visualize report tables. |
-| 🧠 Vector Store | Chroma | Store embeddings for chatbot/RAG retrieval. |
-| 🍃 Chat Storage | MongoDB | Store chatbot conversation messages. |
-| ⚡ Cache | Redis | Shared API rate limiting and cache-oriented extensions. |
-| 🔔 Notification | Discord | Send or publish pipeline outputs. |
+![JobFlow Architecture](assets/Architecture_JobFlow.png)
 
 ---
 
