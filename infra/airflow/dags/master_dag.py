@@ -37,12 +37,13 @@ default_args = {
     ],
 )
 def master_elt():
+    """Build the end-to-end job ELT DAG from crawling through audit reporting."""
     itviec_insert = itviec_pipeline()
     topcv_insert = topcv_pipeline()
 
     post_tasks = post_job_group()
     process_image_task = process_company_logos_group()
-    dbt_tasks = dbt_wh_pipeline()
+    dbt_tasks = dbt_wh_pipeline(run_audit_after_reports=False)
     embedding_tasks = embedding_data_vector_db_group()
 
     itviec_insert >> post_tasks["itviec"]
@@ -50,7 +51,8 @@ def master_elt():
     itviec_insert >> process_image_task["insert_logos"]
     topcv_insert >> process_image_task["insert_logos"]
     [itviec_insert, topcv_insert] >> dbt_tasks["start"]
-    dbt_tasks["end"] >> embedding_tasks["start"]
+    dbt_tasks["reports_end"] >> embedding_tasks["start"]
+    embedding_tasks["end"] >> dbt_tasks["audit"]
 
 
 dag = master_elt()

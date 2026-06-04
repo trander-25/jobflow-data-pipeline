@@ -25,6 +25,7 @@ default_args = {
     tags=["image_pipeline"],
 )
 def _image_processing_pipeline():
+    """Build a standalone DAG for processing and storing company logos."""
     process_company_logos_group()
 
 

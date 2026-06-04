@@ -30,6 +30,7 @@ default_args = {
     tags=["dbt_pipeline"],
 )
 def _dbt_wh_pipeline():
+    """Build a standalone DAG for dbt warehouse transformations."""
     dbt_wh_pipeline()
 
 

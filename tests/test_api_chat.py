@@ -47,8 +47,6 @@ class BrokenLlm:
 def test_chat_endpoint_uses_retrieval_llm_and_history():
     history = FakeHistoryStore()
     app.state.settings = Settings(
-        rag_default_top_k=3,
-        rag_max_top_k=5,
         chat_history_limit=6,
         rate_limit_enabled=False,
     )
@@ -68,8 +66,6 @@ def test_chat_endpoint_falls_back_when_llm_fails():
     history = FakeHistoryStore()
     app.state.settings = Settings(
         google_genai_model="bad-model",
-        rag_default_top_k=3,
-        rag_max_top_k=5,
         chat_history_limit=6,
         rate_limit_enabled=False,
     )

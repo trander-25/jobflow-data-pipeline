@@ -13,11 +13,14 @@ if not logger.handlers:
 
 
 def load_crawl_sources_url(source_crawl: str):
-    """Load crawl sources from a JSON file based on the source_crawl parameter.
+    """Load configured crawl source URLs for a supported job platform.
+
     Args:
-        source_crawl (str): The source to crawl, either 'itviec' or 'topcv'.
+        source_crawl: Source platform to crawl. Supported values are "itviec" and "topcv".
+
     Returns:
-        List[Dict]: A list of crawl sources loaded from the JSON file."""
+        A dictionary of source names and URLs loaded from the matching JSON file.
+    """
     from scripts.utils.load_crawl_source import load_crawl_sources
 
     if source_crawl == "itviec":
@@ -33,13 +36,16 @@ def load_crawl_sources_url(source_crawl: str):
 
 
 def upload_crawl_data_to_minio(data: List[Dict], source_crawl: str, bucket_name: str = "crawled-data"):
-    """Upload crawl data to MinIO.
+    """Upload scraped job records to MinIO as a timestamped JSON object.
+
     Args:
-        data (List[Dict]): The crawl data to upload.
-        source_crawl (str): The source of the crawl data, used for naming the destination file.
-        bucket_name (str): The name of the MinIO bucket to upload to. Default is 'crawled-data'.
+        data: Scraped job records to persist.
+        source_crawl: Source platform name used in the object path.
+        bucket_name: MinIO bucket that stores crawled data.
+
     Returns:
-        str: The destination file path in MinIO where the data was uploaded."""
+        The MinIO object path when records are uploaded, or an empty dictionary when no data is provided.
+    """
     import datetime
 
     if not data:
@@ -61,6 +67,15 @@ def upload_crawl_data_to_minio(data: List[Dict], source_crawl: str, bucket_name:
 
 
 def get_data_from_minio(source_crawl: str, file_path: str):
+    """Read scraped job records from a MinIO JSON object.
+
+    Args:
+        source_crawl: Source platform name used for logging.
+        file_path: Object path in the crawled-data bucket.
+
+    Returns:
+        A list of job records decoded from the MinIO object.
+    """
     from scripts.utils.minio_conn import MinIOConnection
 
     try:
@@ -76,12 +91,15 @@ def get_data_from_minio(source_crawl: str, file_path: str):
 
 
 def deduplicate_jobs(jobs: list[dict], key: str = "url") -> list[dict]:
-    """Deduplicate a list of job dictionaries based on a specified key (default is 'url').
+    """Remove duplicate job records by a stable field.
+
     Args:
-        jobs (list[dict]): The list of job dictionaries to deduplicate.
-        key (str): The key in the job dictionaries to use for deduplication. Default is 'url'.
+        jobs: Job records to deduplicate.
+        key: Field used as the unique identifier.
+
     Returns:
-        list[dict]: A deduplicated list of job dictionaries."""
+        Job records with invalid items, missing keys, and duplicate keys removed.
+    """
     seen = set()
     deduped = []
 
@@ -101,12 +119,15 @@ def deduplicate_jobs(jobs: list[dict], key: str = "url") -> list[dict]:
 
 
 def scrape_source_job(sources: dict, source_crawl: str):
-    """Scrape job data from specified sources, validate the data, and upload it to MinIO.
+    """Scrape, validate, deduplicate, and upload job data for one source platform.
+
     Args:
-        sources (dict): A dictionary of sources to scrape, where keys are source names and values are URLs.
-        source_crawl (str): The source to crawl, either 'itviec' or 'topcv'.
+        sources: Mapping of source names to listing URLs.
+        source_crawl: Source platform to crawl. Supported values are "itviec" and "topcv".
+
     Returns:
-        dict: A dictionary containing the results of the scraping process, including counts of rows processed,"""
+        Audit-friendly metrics, including scraped row count and uploaded MinIO object path.
+    """
     from scripts.crawl_scripts.crawler import Crawler
     from scripts.validation.ge_runner import run_ge_validation
     from scripts.validation.itviec import expectations as itviec_expectations
@@ -147,6 +168,15 @@ def scrape_source_job(sources: dict, source_crawl: str):
 
 
 def insert_jobs_to_staging_layer(data_file_path: str, source_crawl: str):
+    """Load scraped data from MinIO and upsert it into the source staging table.
+
+    Args:
+        data_file_path: MinIO object path returned by the scraping task.
+        source_crawl: Source platform to insert. Supported values are "itviec" and "topcv".
+
+    Returns:
+        Audit-friendly insert metrics, or an empty dictionary when no data is available.
+    """
     from scripts.utils.db_conn import DBConnection
 
     try:
@@ -175,6 +205,11 @@ def insert_jobs_to_staging_layer(data_file_path: str, source_crawl: str):
 
 
 def insert_company_logos_to_staging_layer():
+    """Insert newly discovered company logo URLs into the staging logo table.
+
+    Returns:
+        New logo URL records that still need downloading, or None when all logos already exist.
+    """
     from scripts.utils.db_conn import DBConnection
     from sqlalchemy import text
 
@@ -213,6 +248,14 @@ def insert_company_logos_to_staging_layer():
 
 
 def download_logos_and_upload_to_minio(data: list[dict]):
+    """Download company logos, optimize them, and upload each image to MinIO.
+
+    Args:
+        data: Records containing logo URLs from the staging logo table.
+
+    Returns:
+        Logo records with base64 image payloads ready to update in the staging table.
+    """
     from scripts.utils.image_processor import ImageDownloader
     from scripts.utils.minio_conn import MinIOConnection
 
@@ -246,6 +289,11 @@ def download_logos_and_upload_to_minio(data: list[dict]):
 
 
 def update_company_logos_in_staging_layer(results: list[dict]):
+    """Update staging logo records with downloaded logo paths or payloads.
+
+    Args:
+        results: Processed logo records returned by the download/upload task.
+    """
     from scripts.utils.db_conn import DBConnection
 
     if not results:
@@ -259,6 +307,14 @@ def update_company_logos_in_staging_layer(results: list[dict]):
 
 
 def post_job_to_discord(crawl_source: str):
+    """Send unposted jobs from a staging source table to Discord and mark them posted.
+
+    Args:
+        crawl_source: Source platform whose jobs should be sent. Supported values are "itviec" and "topcv".
+
+    Returns:
+        Counts for successfully and unsuccessfully sent Discord posts.
+    """
     import os
 
     from scripts.utils.sender import mark_jobs_as_posted, query_unposted_jobs, send_job_alerts
@@ -295,6 +351,11 @@ def post_job_to_discord(crawl_source: str):
 
 
 def getting_data_for_embedding_task():
+    """Read recently built vector_db records from Trino for Chroma embedding.
+
+    Returns:
+        Cleaned vector_db records whose embedding text was produced in the last hour.
+    """
     import os
 
     from airflow.providers.trino.hooks.trino import TrinoHook
@@ -351,6 +412,14 @@ def getting_data_for_embedding_task():
 
 
 def embed_and_save_data_task(data: list[dict]):
+    """Embed vector_db records and persist new documents into Chroma.
+
+    Args:
+        data: Records selected from the vector_db lakehouse model.
+
+    Returns:
+        Embedding metrics from the Chroma writer utility.
+    """
     from scripts.utils.embed_data_vector_db import embed_and_save_data
 
     return embed_and_save_data(data)

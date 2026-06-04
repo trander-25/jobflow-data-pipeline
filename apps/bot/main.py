@@ -16,12 +16,16 @@ api_client = JobFlowApiClient(settings)
 
 
 class JobFlowBot(discord.Client):
+    """Discord client that owns the JobFlow slash-command tree."""
+
     def __init__(self) -> None:
+        """Initialize a minimal Discord client and command tree."""
         intents = discord.Intents.none()
         super().__init__(intents=intents)
         self.tree = app_commands.CommandTree(self)
 
     async def setup_hook(self) -> None:
+        """Sync slash commands globally or to a configured development guild."""
         if settings.discord_guild_id:
             guild = discord.Object(id=int(settings.discord_guild_id))
             self.tree.copy_global_to(guild=guild)
@@ -36,6 +40,7 @@ client = JobFlowBot()
 
 
 async def _send_chunks(interaction: discord.Interaction, message: str) -> None:
+    """Send a potentially long response as one or more Discord follow-up messages."""
     chunks = split_discord_message(message)
     await interaction.followup.send(chunks[0])
     for chunk in chunks[1:]:
@@ -45,6 +50,7 @@ async def _send_chunks(interaction: discord.Interaction, message: str) -> None:
 @client.tree.command(name="ask", description="Ask JobFlow AI about matching jobs")
 @app_commands.describe(question="Your job-search question")
 async def ask(interaction: discord.Interaction, question: str) -> None:
+    """Handle /ask by calling the JobFlow chat API and returning the answer."""
     await interaction.response.defer(thinking=True)
     try:
         payload = await api_client.ask(user_id=str(interaction.user.id), question=question)
@@ -57,12 +63,12 @@ async def ask(interaction: discord.Interaction, question: str) -> None:
 @client.tree.command(name="jobs", description="Search matching jobs in JobFlow")
 @app_commands.describe(query="Search query")
 async def jobs(interaction: discord.Interaction, query: str) -> None:
+    """Handle /jobs by calling semantic search and returning matching jobs."""
     await interaction.response.defer(thinking=True)
     try:
         payload = await api_client.search_jobs(
             query=query,
             user_id=str(interaction.user.id),
-            top_k=settings.jobs_default_top_k,
         )
         await _send_chunks(interaction, format_jobs_response(payload))
     except Exception as exc:
@@ -72,6 +78,7 @@ async def jobs(interaction: discord.Interaction, query: str) -> None:
 
 @client.tree.command(name="reset", description="Clear your JobFlow chat history")
 async def reset(interaction: discord.Interaction) -> None:
+    """Handle /reset by clearing the current user's stored chat history."""
     await interaction.response.defer(thinking=True, ephemeral=True)
     try:
         payload = await api_client.reset_history(user_id=str(interaction.user.id))
@@ -83,6 +90,7 @@ async def reset(interaction: discord.Interaction) -> None:
 
 
 def main() -> None:
+    """Start the Discord bot when enabled by environment configuration."""
     if not settings.discord_bot_enabled:
         logger.warning("Discord bot is disabled. Set DISCORD_BOT_ENABLED=true and DISCORD_TOKEN to enable it.")
         while True:

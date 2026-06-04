@@ -44,7 +44,7 @@ The project follows a lakehouse-style workflow:
 - 🤖 FastAPI RAG backend for job-search chatbot responses.
 - 🍃 MongoDB for chatbot conversation storage.
 - 💬 Discord slash-command bot for interactive job Q&A.
-- ⚡ Redis for cache or queue-oriented extensions.
+- ⚡ Redis for shared API rate limiting and cache or queue-oriented extensions.
 - 🔔 Discord integration for notification and posting workflows.
 - 🐳 Docker Compose setup for local development.
 
@@ -85,7 +85,7 @@ dbt Models                Bronze -> Silver -> Gold -> Reports -> Audit
 | 🐘 Metadata | PostgreSQL | Store Airflow, application, and catalog metadata. |
 | 🧠 Vector Store | Chroma | Store embeddings for chatbot/RAG retrieval. |
 | 🍃 Chat Storage | MongoDB | Store chatbot conversation messages. |
-| ⚡ Cache | Redis | Cache or queue support for future services. |
+| ⚡ Cache | Redis | Shared API rate limiting, cache, or queue support. |
 | 🧱 Transformation | dbt | Build curated analytical models. |
 | 🔔 Notification | Discord | Send or publish pipeline outputs. |
 
@@ -261,8 +261,7 @@ Example `/chat` request:
 ```json
 {
   "user_id": "discord-user-id",
-  "message": "Có job Data Engineer ở TP.HCM không?",
-  "top_k": 5
+  "message": "Có job Data Engineer ở TP.HCM không?"
 }
 ```
 
@@ -270,12 +269,13 @@ Example `/jobs/search` request:
 
 ```json
 {
-  "query": "backend Python remote",
-  "top_k": 5
+  "query": "backend Python remote"
 }
 ```
 
-All chatbot responses include `sources`, `retrieved_jobs`, and `usage_context` so readers can see which job records were retrieved.
+The API infers the answer size from the request text. For example, `cho tôi 2 job lương cao nhất` returns 2 jobs, while a broad search returns at most 5 jobs unless an explicit `top_k` override is sent.
+
+All chatbot responses include `sources`, `retrieved_jobs`, and `usage_context` so clients can inspect which job records were retrieved.
 
 ### Discord Bot Commands
 
@@ -307,17 +307,14 @@ Important variables by subsystem:
 | `DISCORD_GUILD_ID` | empty | `apps/bot` | Optional guild id for faster slash-command sync during development. |
 | `API_HOST_PORT` | `8100` | Docker Compose | Host port exposed for `apps/api`. |
 | `API_BASE_URL` | `http://api:8100` | `apps/bot` | Base URL the bot uses to call the API inside Docker. For local bot dev, use `http://localhost:8100`. |
-| `API_TIMEOUT_SECONDS` | `45` | `apps/bot` | HTTP timeout for bot-to-API calls. |
+| `API_TIMEOUT_SECONDS` | `120` | `apps/bot` | HTTP timeout for bot-to-API calls. |
 | `GOOGLE_API_KEY` | empty | `apps/api` | Google AI API key. Required by `POST /chat`. |
 | `GOOGLE_GENAI_MODEL` | `gemini-2.0-flash` | `apps/api` | Model id used by `google-genai`. |
 | `GOOGLE_GENAI_TEMPERATURE` | `0.2` | `apps/api` | LLM generation temperature. |
-| `RAG_DEFAULT_TOP_K` | `5` | `apps/api` | Default Chroma result count when request `top_k` is omitted. |
-| `RAG_MAX_TOP_K` | `10` | `apps/api` | Maximum retrieval count enforced by the API. |
 | `CHAT_HISTORY_LIMIT` | `6` | `apps/api` | Number of recent MongoDB messages loaded for prompt context. |
-| `JOBS_DEFAULT_TOP_K` | `5` | `apps/bot` | Number of jobs requested by the `/jobs` command. |
-| `RATE_LIMIT_ENABLED` | `true` | `apps/api` | Enables in-memory anti-spam throttling. |
+| `RATE_LIMIT_ENABLED` | `true` | `apps/api` | Enables anti-spam throttling backed by Redis when available. |
 | `RATE_LIMIT_REQUESTS` | `10` | `apps/api` | Maximum requests per key inside the configured window. |
-| `RATE_LIMIT_WINDOW_SECONDS` | `60` | `apps/api` | Rolling window size in seconds. |
+| `RATE_LIMIT_WINDOW_SECONDS` | `60` | `apps/api` | Fixed-window size in seconds. |
 | `RATE_LIMIT_SEARCH_ENABLED` | `true` | `apps/api` | Applies rate limiting to `/jobs/search` in addition to `/chat`. |
 
 ### PostgreSQL and Airflow
@@ -375,9 +372,12 @@ Important variables by subsystem:
 | `MONGODB_PORT` | `27017` | MongoDB, `apps/api` | MongoDB container port. |
 | `MONGODB_HOST_PORT` | `27017` | MongoDB Compose service | Host port exposed for MongoDB. |
 | `REDIS_VERSION` | `7.4.9-alpine` | Redis Compose service | Redis image version. |
-| `REDIS_HOST` | `redis` | Airflow env | Redis hostname inside Docker. |
+| `REDIS_HOST` | `redis` | Airflow env, `apps/api` | Redis hostname inside Docker. |
 | `REDIS_PORT` | `6379` | Redis | Redis container port. |
 | `REDIS_HOST_PORT` | `6379` | Redis Compose service | Host port exposed for Redis. |
+| `REDIS_DB` | `0` | `apps/api` | Redis database index used for API rate-limit counters. |
+| `REDIS_SOCKET_TIMEOUT_SECONDS` | `2.0` | `apps/api` | Redis connection/read timeout in seconds. |
+| `REDIS_RATE_LIMIT_PREFIX` | `jobflow:rate_limit` | `apps/api` | Prefix for API rate-limit keys. |
 | `POSTGRES_VOLUME_NAME` | `jobflow_postgres_data` | Docker | Persistent PostgreSQL volume. |
 | `MINIO_VOLUME_NAME` | `jobflow_minio_data` | Docker | Persistent MinIO volume. |
 | `CHROMA_VOLUME_NAME` | `jobflow_chroma_data` | Docker | Persistent Chroma volume. |

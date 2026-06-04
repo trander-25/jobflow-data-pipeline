@@ -5,6 +5,7 @@ from api.schemas import JobSource, SourceLink
 
 
 def _metadata_value(metadata: dict[str, Any], key: str) -> str:
+    """Return a Chroma metadata value as a string with a safe empty fallback."""
     value = metadata.get(key)
     if value is None:
         return ""
@@ -12,6 +13,7 @@ def _metadata_value(metadata: dict[str, Any], key: str) -> str:
 
 
 def _first_batch(result: dict[str, Any], key: str) -> list[Any]:
+    """Normalize Chroma query/get output to a single flat result list."""
     value = result.get(key) or []
     if not value:
         return []
@@ -20,6 +22,7 @@ def _first_batch(result: dict[str, Any], key: str) -> list[Any]:
 
 
 def map_chroma_results(result: dict[str, Any]) -> list[JobSource]:
+    """Map raw Chroma query results into API JobSource models."""
     ids = _first_batch(result, "ids")
     documents = _first_batch(result, "documents")
     metadatas = _first_batch(result, "metadatas")
@@ -44,6 +47,9 @@ def map_chroma_results(result: dict[str, Any]) -> list[JobSource]:
                 experience_level=_metadata_value(metadata, "experiences_level"),
                 years_of_experience=metadata.get("year_of_experiences", ""),
                 salary=_metadata_value(metadata, "salary"),
+                salary_min_million=metadata.get("salary_min_million", ""),
+                salary_max_million=metadata.get("salary_max_million", ""),
+                salary_avg_million=metadata.get("salary_avg_million", ""),
                 salary_band=_metadata_value(metadata, "salary_band"),
                 posted_date=_metadata_value(metadata, "job_posted_date"),
                 distance=distance,
@@ -55,11 +61,15 @@ def map_chroma_results(result: dict[str, Any]) -> list[JobSource]:
 
 
 def source_links(jobs: list[JobSource]) -> list[SourceLink]:
+    """Build compact source links from retrieved job records."""
     return [SourceLink(job_id=job.job_id, title=job.title, company=job.company, url=job.url) for job in jobs if job.url]
 
 
 class ChromaJobStore:
+    """Read job embeddings from the configured Chroma collection."""
+
     def __init__(self, settings: Settings):
+        """Create a Chroma HTTP client and load the job embedding collection."""
         import chromadb
         from chromadb.utils import embedding_functions
 
@@ -72,8 +82,18 @@ class ChromaJobStore:
         )
 
     def healthcheck(self) -> None:
+        """Verify the Chroma service is reachable."""
         self.client.heartbeat()
 
     def search(self, query: str, top_k: int) -> list[JobSource]:
+        """Run semantic search against the job embedding collection."""
         result = self.collection.query(query_texts=[query], n_results=top_k)
+        return map_chroma_results(result)
+
+    def all_jobs(self, limit: int | None = None) -> list[JobSource]:
+        """Return documents from the collection for non-semantic scans."""
+        kwargs: dict[str, Any] = {"include": ["documents", "metadatas"]}
+        if limit is not None:
+            kwargs["limit"] = limit
+        result = self.collection.get(**kwargs)
         return map_chroma_results(result)

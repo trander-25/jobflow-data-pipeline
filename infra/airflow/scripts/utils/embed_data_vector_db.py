@@ -17,6 +17,7 @@ DEFAULT_EMBEDDING_FUNCTION = embedding_functions.DefaultEmbeddingFunction()
 
 
 def _metadata_value(value: Any) -> str | int | float | bool:
+    """Normalize a metadata value into a Chroma-supported scalar type."""
     if isinstance(value, (str, int, float, bool)):
         return value
     if value is None:
@@ -25,6 +26,7 @@ def _metadata_value(value: Any) -> str | int | float | bool:
 
 
 def _job_metadata(item: dict[str, Any]) -> dict[str, str | int | float | bool]:
+    """Build the Chroma metadata payload for one job record."""
     metadata_fields = [
         "job_id",
         "source_platform",
@@ -38,6 +40,9 @@ def _job_metadata(item: dict[str, Any]) -> dict[str, str | int | float | bool]:
         "experiences_level",
         "year_of_experiences",
         "salary",
+        "salary_min_million",
+        "salary_max_million",
+        "salary_avg_million",
         "salary_band",
         "job_posted_date",
         "job_posted_timestamp",
@@ -46,11 +51,13 @@ def _job_metadata(item: dict[str, Any]) -> dict[str, str | int | float | bool]:
 
 
 def _batched(items: list[Any], batch_size: int):
+    """Yield consecutive fixed-size batches from a list."""
     for index in range(0, len(items), batch_size):
         yield items[index : index + batch_size]
 
 
 def _existing_ids(collection, ids: list[str]) -> set[str]:
+    """Return job ids that already exist in a Chroma collection."""
     existing: set[str] = set()
     for id_batch in _batched(ids, CHROMA_BATCH_SIZE):
         result = collection.get(ids=id_batch)
@@ -59,6 +66,14 @@ def _existing_ids(collection, ids: list[str]) -> set[str]:
 
 
 def embed_and_save_data(data: list[dict[str, Any]]) -> dict[str, int]:
+    """Embed valid job records and insert only new documents into Chroma.
+
+    Args:
+        data: Lakehouse vector_db rows containing job_id and embedding_text.
+
+    Returns:
+        Counts for received, embedded, already existing, and invalid rows.
+    """
     if not data:
         logger.info("No data provided for Chroma embedding.")
         return {"received": 0, "embedded": 0, "skipped_existing": 0, "skipped_invalid": 0}

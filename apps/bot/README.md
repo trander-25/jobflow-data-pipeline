@@ -47,7 +47,7 @@ Use this when the user wants search results without an AI-generated explanation:
 
 Behavior:
 
-- Sends `query` and `JOBS_DEFAULT_TOP_K` to the API.
+- Sends `query` to the API. The API infers how many jobs to return from the query text, defaulting to at most 5.
 - Formats returned jobs with title, company, location, salary, and URL.
 
 ### `/reset`
@@ -67,8 +67,7 @@ Behavior:
 | `DISCORD_TOKEN` | empty | Discord bot token. Required to start the bot. |
 | `DISCORD_GUILD_ID` | empty | Optional guild id. When set, slash commands sync to that guild for faster development. |
 | `API_BASE_URL` | `http://localhost:8100` | FastAPI base URL. Docker default is `http://api:8100`. |
-| `API_TIMEOUT_SECONDS` | `45` | HTTP timeout for API calls. |
-| `JOBS_DEFAULT_TOP_K` | `5` | Number of jobs requested by `/jobs`. |
+| `API_TIMEOUT_SECONDS` | `120` | HTTP timeout for API calls. |
 
 ## Running Locally
 

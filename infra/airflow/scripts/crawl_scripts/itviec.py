@@ -19,12 +19,16 @@ logger = logging.getLogger(__name__)
 
 
 class ITViecScraper:
+    """Scrape ITViec listing pages and enrich records from job detail pages."""
+
     def __init__(self, headless: bool = True):
+        """Initialize scraper options and resolve the ChromeDriver path."""
         self.headless = headless
         self._driver_path = ChromeDriverManager().install()
 
     # ---------------- DRIVER SETUP ---------------- #
     def _get_chrome_options(self) -> Options:
+        """Build Chrome options used by the ITViec Selenium driver."""
         options = Options()
         if self.headless:
             options.add_argument("--headless=new")
@@ -42,10 +46,12 @@ class ITViecScraper:
         return options
 
     def _init_driver(self) -> webdriver.Chrome:
+        """Create a Selenium Chrome driver for ITViec pages."""
         logger.info("Initializing ChromeDriver...")
         return webdriver.Chrome(service=Service(self._driver_path), options=self._get_chrome_options())
 
     def _preview_html(self, element, max_length: int = 500) -> str:
+        """Return a compact HTML preview for scraper debug logs."""
         if element is None:
             return "<None>"
 
@@ -53,6 +59,7 @@ class ITViecScraper:
         return html[:max_length] + "..." if len(html) > max_length else html
 
     def _log_job_state(self, level: int, message: str, idx: int, total: int, data: Dict[str, Optional[str]]) -> None:
+        """Log the current extraction state for one job record."""
         logger.log(
             level,
             "%s | job=%s/%s title=%r company=%r url=%r desc=%s req=%s job_cat=%r",
@@ -68,6 +75,7 @@ class ITViecScraper:
         )
 
     def _extract_text(self, section) -> Optional[str]:
+        """Extract joined paragraph and list-item text from a detail section."""
         try:
             items = section.find_all(["p", "li"], recursive=True)
             texts = [i.get_text() for i in items if i.get_text(strip=True)]
@@ -77,6 +85,7 @@ class ITViecScraper:
             return None
 
     def _is_challenge_page(self, soup: BeautifulSoup) -> bool:
+        """Detect Cloudflare or bot-protection challenge pages."""
         title_text = (soup.title.get_text(strip=True) if soup.title else "").lower()
         body_text = soup.get_text(" ", strip=True).lower()
         challenge_signals = [
@@ -89,6 +98,7 @@ class ITViecScraper:
         return any(sig in title_text or sig in body_text for sig in challenge_signals)
 
     def _load_detail_soup(self, driver: webdriver.Chrome, url: str) -> BeautifulSoup:
+        """Load an ITViec detail page and parse it into BeautifulSoup."""
         logger.info("Loading ITViec detail page: %s", url)
         driver.get(url)
         try:
@@ -109,6 +119,7 @@ class ITViecScraper:
         return soup
 
     def _apply_detail_data(self, data: Dict[str, Optional[str]], detail_soup: BeautifulSoup) -> None:
+        """Populate job category, description, and requirement fields from a detail page."""
         job_cat_div = detail_soup.find("div", string="Job Expertise:")
         data["job_cat"] = (
             ", ".join([job_cat.text.strip() for job_cat in job_cat_div.find_next("div").find_all("a")])
@@ -138,6 +149,7 @@ class ITViecScraper:
         )
 
     def _retry_detail_with_fresh_driver(self, data: Dict[str, Optional[str]]) -> None:
+        """Retry detail extraction with a fresh driver when the existing session is blocked."""
         if not data["url"]:
             logger.warning("Skip detail retry because job URL is missing | title=%r company=%r", data.get("title"), data.get("company"))
             return
@@ -156,6 +168,15 @@ class ITViecScraper:
             retry_driver.quit()
 
     def scrape_jobs(self, url: str, max_jobs: Optional[int] = None) -> List[Dict[str, Optional[str]]]:
+        """Scrape ITViec jobs from a listing URL.
+
+        Args:
+            url: ITViec listing page URL.
+            max_jobs: Optional maximum number of listing jobs to process.
+
+        Returns:
+            Job records with listing and detail-page fields required by validation.
+        """
         logger.info("Starting ITViec scrape | url=%s max_jobs=%s headless=%s", url, max_jobs, self.headless)
         driver = self._init_driver()
         driver.get(url)
