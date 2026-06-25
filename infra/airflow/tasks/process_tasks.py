@@ -118,12 +118,19 @@ def deduplicate_jobs(jobs: list[dict], key: str = "url") -> list[dict]:
     return deduped
 
 
-def scrape_source_job(sources: dict, source_crawl: str):
+def scrape_source_job(
+    sources: dict,
+    source_crawl: str,
+    max_jobs: int | None = 2,
+    max_jobs_page: int | None = None,
+):
     """Scrape, validate, deduplicate, and upload job data for one source platform.
 
     Args:
         sources: Mapping of source names to listing URLs.
         source_crawl: Source platform to crawl. Supported values are "itviec" and "topcv".
+        max_jobs: Optional maximum number of listing jobs to process per source URL.
+        max_jobs_page: Optional maximum number of listing pages to scrape per source URL.
 
     Returns:
         Audit-friendly metrics, including scraped row count and uploaded MinIO object path.
@@ -141,7 +148,7 @@ def scrape_source_job(sources: dict, source_crawl: str):
     for source, url in sources.items():
         logger.info(f"Processing source: {source} with URL: {url}")
         try:
-            dict_jobs = crawler.crawler(url, max_jobs=20)
+            dict_jobs = crawler.crawler(url, max_jobs=max_jobs, max_jobs_page=max_jobs_page)
             if dict_jobs:
                 logger.info(f"Successfully scraped {len(dict_jobs)} jobs from {source_crawl}")
                 total_data_job += dict_jobs
