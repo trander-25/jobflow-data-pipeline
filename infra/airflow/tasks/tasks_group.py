@@ -30,7 +30,7 @@ DBT_RUNTIME_ARGS = "--log-path /tmp/dbt_logs --target-path /tmp/dbt_target"
 
 # task group for itviec pipeline
 @task_group
-def itviec_pipeline():
+def itviec_pipeline(max_jobs: int | None = 100, max_jobs_page: int | None = 9):
     """Build the ITViec crawl pipeline from source loading through staging insert."""
 
     @task(on_success_callback=task_success_callback, on_failure_callback=task_failure_callback)
@@ -41,7 +41,12 @@ def itviec_pipeline():
     @task(on_success_callback=task_success_callback, on_failure_callback=task_failure_callback)
     def scrape_itviec_job(sources: dict):
         """Scrape ITViec jobs and upload validated records to MinIO."""
-        return scrape_source_job(sources=sources, source_crawl="itviec")
+        return scrape_source_job(
+            sources=sources,
+            source_crawl="itviec",
+            max_jobs=max_jobs,
+            max_jobs_page=max_jobs_page,
+        )
 
     @task(on_success_callback=task_success_callback, on_failure_callback=task_failure_callback)
     def insert_jobs_itviec(data):
@@ -57,7 +62,7 @@ def itviec_pipeline():
 
 # task group for topcv pipeline
 @task_group
-def topcv_pipeline():
+def topcv_pipeline(max_jobs: int | None = 100, max_jobs_page: int | None = None):
     """Build the TopCV crawl pipeline from source loading through staging insert."""
 
     @task(on_success_callback=task_success_callback, on_failure_callback=task_failure_callback)
@@ -68,7 +73,12 @@ def topcv_pipeline():
     @task(on_success_callback=task_success_callback, on_failure_callback=task_failure_callback)
     def scrape_topcv_job(sources: dict):
         """Scrape TopCV jobs and upload validated records to MinIO."""
-        return scrape_source_job(sources=sources, source_crawl="topcv")
+        return scrape_source_job(
+            sources=sources,
+            source_crawl="topcv",
+            max_jobs=max_jobs,
+            max_jobs_page=max_jobs_page,
+        )
 
     @task(on_success_callback=task_success_callback, on_failure_callback=task_failure_callback)
     def insert_jobs_topcv(data):
@@ -148,7 +158,10 @@ def dbt_wh_pipeline(run_audit_after_reports: bool = True):
     def seed_mapping_tables():
         """Return the dbt command that seeds mapping tables."""
         logger.info("Starting seed mapping tables!!!")
-        return f"dbt seed --select job_category_mapping vn_city_mapping --project-dir {PROJECT_DIR} --profiles-dir {PROFILE_DIR} {DBT_RUNTIME_ARGS}"
+        return (
+            "dbt seed --select job_category_mapping vn_city_mapping "
+            f"--project-dir {PROJECT_DIR} --profiles-dir {PROFILE_DIR} {DBT_RUNTIME_ARGS}"
+        )
 
     @task.bash(on_success_callback=dbt_task_callback, on_failure_callback=task_failure_callback)
     def process_bronze_wh_layer():
