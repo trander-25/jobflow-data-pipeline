@@ -25,6 +25,7 @@ default_args = {
     tags=["topcv_pipeline"],
 )
 def _topcv_pipeline():
+    """Build a standalone DAG for crawling and staging TopCV jobs."""
     topcv_pipeline()
 
 

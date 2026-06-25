@@ -24,9 +24,10 @@ line-ending = "auto"
 
 [tool.pytest.ini_options]
 minversion = "8.0"
-testpaths = ["infra/airflow/scripts/tests"]
+testpaths = ["tests"]
 python_files = ["test_*.py"]
-pythonpath = ["infra/airflow"]
+pythonpath = ["infra/airflow", "apps"]
 addopts = [
     "-ra",
+    "--import-mode=importlib",
 ]

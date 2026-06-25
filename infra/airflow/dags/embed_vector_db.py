@@ -30,6 +30,7 @@ default_args = {
     tags=["embed_pipeline"],
 )
 def _embed_vector_db_group_task():
+    """Build a standalone DAG for vector_db creation and Chroma embedding."""
     embedding_data_vector_db_group()
 
 

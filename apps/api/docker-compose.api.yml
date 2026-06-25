@@ -1,0 +1,60 @@
+services:
+  api:
+    build:
+      context: ../..
+      dockerfile: apps/api/Dockerfile
+    container_name: jobflow-api
+    restart: unless-stopped
+    command:
+      [
+        "uvicorn",
+        "api.main:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8100",
+        "--reload",
+        "--reload-dir",
+        "/app/api",
+      ]
+    environment:
+      CHROMA_HOST: ${CHROMA_HOST:-chroma}
+      CHROMA_PORT: ${CHROMA_PORT:-8000}
+      CHROMA_COLLECTION_NAME: ${CHROMA_COLLECTION_NAME:-job_embeddings}
+      MONGODB_HOST: ${MONGODB_HOST:-mongodb}
+      MONGODB_PORT: ${MONGODB_PORT:-27017}
+      MONGODB_USERNAME: ${MONGODB_USERNAME:-user}
+      MONGODB_PASSWORD: ${MONGODB_PASSWORD:-password}
+      MONGODB_DB: ${MONGODB_DB:-jobflow}
+      MONGODB_AUTH_SOURCE: ${MONGODB_AUTH_SOURCE:-admin}
+      MONGODB_CHAT_COLLECTION: ${MONGODB_CHAT_COLLECTION:-chat_messages}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      GOOGLE_GENAI_MODEL: ${GOOGLE_GENAI_MODEL:-gemini-2.0-flash}
+      GOOGLE_GENAI_TEMPERATURE: ${GOOGLE_GENAI_TEMPERATURE:-0.2}
+      CHAT_HISTORY_LIMIT: ${CHAT_HISTORY_LIMIT:-6}
+      RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-true}
+      RATE_LIMIT_REQUESTS: ${RATE_LIMIT_REQUESTS:-10}
+      RATE_LIMIT_WINDOW_SECONDS: ${RATE_LIMIT_WINDOW_SECONDS:-60}
+      RATE_LIMIT_SEARCH_ENABLED: ${RATE_LIMIT_SEARCH_ENABLED:-true}
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_DB: ${REDIS_DB:-0}
+      REDIS_SOCKET_TIMEOUT_SECONDS: ${REDIS_SOCKET_TIMEOUT_SECONDS:-2.0}
+      REDIS_RATE_LIMIT_PREFIX: ${REDIS_RATE_LIMIT_PREFIX:-jobflow:rate_limit}
+    ports:
+      - "${API_HOST_PORT:-8100}:8100"
+    volumes:
+      - .:/app/api
+    depends_on:
+      chroma:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8100/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s

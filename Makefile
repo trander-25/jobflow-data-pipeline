@@ -9,7 +9,7 @@ PIP ?= .venv/bin/pip
 PRE_COMMIT ?= .venv/bin/pre-commit
 PRE_COMMIT_HOME ?= .cache/pre-commit
 DOCKER_COMPOSE ?= docker compose
-CODE_PATHS := infra/airflow/dags infra/airflow/scripts infra/airflow/tasks
+CODE_PATHS := infra/airflow/dags infra/airflow/scripts infra/airflow/tasks apps/api apps/bot tests
 
 help:
 	@echo "Available commands:"
@@ -21,6 +21,8 @@ help:
 	@echo "  make docker-restart     Restart all services"
 	@echo "  make docker-logs        Follow logs from all services"
 	@echo "  make docker-ps          Show service status"
+	@echo "  make api-dev            Run the FastAPI chatbot backend locally"
+	@echo "  make bot-dev            Run the Discord bot locally"
 	@echo "  make docker-volume-init Create persistent Docker volumes"
 	@echo "  make docker-init        Run setup, build, and start services"
 	@echo "  make install            Install Python dependencies into .venv"
@@ -42,6 +44,7 @@ run: setup docker-up-build
 	echo "  Trino:         http://localhost:$${TRINO_HOST_PORT:-8081}"; \
 	echo "  MinIO Console: http://localhost:$${MINIO_CONSOLE_PORT:-9001}"; \
 	echo "  Chroma:        http://localhost:$${CHROMA_HOST_PORT:-8000}"; \
+	echo "  Chatbot API:   http://localhost:$${API_HOST_PORT:-8100}"; \
 	echo ""; \
 	echo "Useful next commands:"; \
 	echo "  make docker-ps"; \
@@ -93,7 +96,8 @@ docker-volume-init:
 		$${POSTGRES_VOLUME_NAME:-jobflow_postgres_data} \
 		$${MINIO_VOLUME_NAME:-jobflow_minio_data} \
 		$${CHROMA_VOLUME_NAME:-jobflow_chroma_data} \
-		$${MONGODB_VOLUME_NAME:-jobflow_mongodb_data}; do \
+		$${MONGODB_VOLUME_NAME:-jobflow_mongodb_data} \
+		$${SUPERSET_VOLUME_NAME:-jobflow_superset_home}; do \
 		docker volume inspect $$volume >/dev/null 2>&1 || docker volume create $$volume >/dev/null; \
 	done
 
@@ -119,3 +123,9 @@ docker-init: setup docker-up-build
 
 docker-shell-airflow:
 	$(DOCKER_COMPOSE) exec airflow-webserver bash
+
+api-dev:
+	PYTHONPATH=apps $(PYTHON) -m uvicorn api.main:app --host 0.0.0.0 --port 8100 --reload
+
+bot-dev:
+	PYTHONPATH=apps $(PYTHON) -m bot.main

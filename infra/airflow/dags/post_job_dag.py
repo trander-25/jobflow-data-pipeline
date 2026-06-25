@@ -24,6 +24,7 @@ default_args = {
     tags=["upload_discord"],
 )
 def post_job_pipeline():
+    """Build a standalone DAG for posting unposted jobs to Discord."""
     post_job_group()
 
 

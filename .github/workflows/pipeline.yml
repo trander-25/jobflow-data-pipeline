@@ -17,10 +17,11 @@ concurrency:
 
 env:
   PYTHON_VERSION: "3.12"
-  PYTHONPATH: infra/airflow
+  PYTHONPATH: infra/airflow:apps
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository_owner }}/jobflow-data-pipeline-airflow
-  CODE_PATHS: infra/airflow/dags infra/airflow/scripts infra/airflow/tasks
+  CODE_PATHS: apps/api apps/bot infra/airflow/dags infra/airflow/scripts infra/airflow/tasks tests
+  TEST_PATHS: tests
   DBT_PROJECT_DIR: infra/airflow/dbt_jobflow
 
 jobs:
@@ -82,6 +83,8 @@ jobs:
       - name: Run tests with pytest
         run: |
           python -m pytest \
+            ${{ env.TEST_PATHS }} \
+            --cov=apps \
             --cov=infra/airflow \
             --cov-report=xml \
             --cov-report=term-missing
@@ -147,7 +150,7 @@ jobs:
 
       - name: Scan Python code with Bandit
         continue-on-error: true
-        run: bandit -r infra/airflow -x infra/airflow/scripts/tests,infra/airflow/scripts/demo
+        run: bandit -r apps infra/airflow -x tests
 
       - name: Audit Python dependencies
         continue-on-error: true
@@ -190,7 +193,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: Dockerfile
+          file: infra/airflow/Dockerfile
           push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
